@@ -2,7 +2,7 @@
 
 A personal planner for classes, work shifts, study sessions, and deadlines. Dark, responsive, and (eventually) installable on your phone.
 
-> Status: Phase 2B — a working calendar with one-off and weekly repeating events, per-occurrence exceptions and overlap warnings. Data is saved **in this browser only** (localStorage); there is no sync or account yet. Study Planner and Insights still show demo data.
+> Status: Phase 3A complete — Supabase email sign-in works against the hosted project and the database schema with Row Level Security is deployed. Calendar data is still saved **in this browser only**: cloud sync is not implemented and nothing from your calendar has been uploaded or migrated.
 
 ## Features
 
@@ -13,6 +13,10 @@ A personal planner for classes, work shifts, study sessions, and deadlines. Dark
 - **Overlap warnings** (non-blocking) for one-off and repeating events
 - Optional university details: course code, session type (main, tutorial, seminar, practical, other) and group label
 - If the browser cannot save, a banner says so instead of pretending it worked
+
+## Sign-in (optional)
+
+Without configuration ORBIT runs in **local-only mode**. To enable Supabase sign-in, copy `.env.example` to `.env.local` and add your project URL and **publishable** key (never a secret/service-role key). Full guide, redirect URLs and manual steps: [docs/supabase-setup.md](docs/supabase-setup.md). Database design and Row Level Security: [supabase/README.md](supabase/README.md) (migrations applied to the hosted project; see the verification notes there).
 
 ## Local development
 
@@ -32,8 +36,9 @@ npm run preview  # serve the production build
 
 1. App shell and dark UI (done)
 2. Calendar and event management with local storage (done)
-2b. **Recurring schedules, exceptions and conflicts (current)**
-3. Supabase authentication and sync between devices
+2b. Recurring schedules, exceptions and conflicts (done)
+3a. Supabase sign-in + secure schema, deployed and verified (done; nothing synced yet)
+3b. **(next)** Cloud CRUD, cross-device sync, safe import of existing local events (duplicate prevention, confirmation, conflict handling)
 4. PWA install and offline support
 5. GitHub Pages deployment
 6. Schedule import

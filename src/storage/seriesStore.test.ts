@@ -193,6 +193,28 @@ describe('save failures are reported', () => {
   })
 })
 
+describe('no-op exceptions (same rule as the database)', () => {
+  const base = { ...input, id: 'a', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+
+  it('drops exceptions that neither cancel nor change anything, keeps cancellations and real changes', () => {
+    const r = sanitizeSeries({
+      ...base,
+      exceptions: [
+        { originalDate: '2026-03-02', override: {} },
+        { originalDate: '2026-03-09' },
+        { originalDate: '2026-03-16', cancelled: false, override: {} },
+        { originalDate: '2026-03-23', cancelled: true, override: {} },
+        { originalDate: '2026-03-30', override: { location: '' } },
+      ],
+    })
+    expect(r?.item.exceptions).toEqual([
+      { originalDate: '2026-03-23', cancelled: true },
+      { originalDate: '2026-03-30', override: { location: '' } },
+    ])
+    expect(r?.lossy).toBe(true)
+  })
+})
+
 describe('university metadata validation', () => {
   const good = { ...input, id: 'a', exceptions: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
 
