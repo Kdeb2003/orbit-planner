@@ -1,10 +1,43 @@
-import { Orbit } from 'lucide-react'
+import { LogOut, Orbit } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { useAuth } from '../auth/AuthContext'
 import { EventEditorProvider } from '../components/EventEditorProvider'
 import { useNow } from '../hooks/useNow'
 import { useSaveError } from '../hooks/useSaveError'
 import { formatDate } from '../utils/time'
 import { navItems } from './navItems'
+
+function SidebarAccount() {
+  const { state, controller } = useAuth()
+  if (state.status === 'signed-in') {
+    return (
+      <div className="mt-auto space-y-2 border-t border-line pt-4 text-xs">
+        <p className="truncate px-2 text-muted" title={state.user.email}>
+          {state.user.email}
+        </p>
+        <button
+          type="button"
+          onClick={() => controller.signOut()}
+          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-muted hover:bg-surface-2 hover:text-white"
+        >
+          <LogOut size={18} aria-hidden /> Sign out
+        </button>
+      </div>
+    )
+  }
+  return <p className="mt-auto px-2 text-xs text-muted">{state.status === 'unconfigured' ? 'Local-only mode' : ''}</p>
+}
+
+/** Reminder that, until cloud sync exists, signing in does NOT back anything up. */
+function LocalDataNotice() {
+  const { state } = useAuth()
+  if (state.status !== 'signed-in') return null
+  return (
+    <p data-testid="local-data-notice" className="border-b border-line bg-surface-2/50 px-4 py-1.5 text-xs text-muted md:px-8">
+      Signed in as <strong className="text-white">{state.user.email}</strong>. Your calendar is still stored only in this browser and is not backed up yet.
+    </p>
+  )
+}
 
 export function AppLayout() {
   const now = useNow(60_000)
@@ -36,6 +69,7 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
+          <SidebarAccount />
         </aside>
 
         <div className="min-w-0">
@@ -50,6 +84,7 @@ export function AppLayout() {
             </time>
           </header>
 
+          <LocalDataNotice />
           {saveError && (
             <div role="alert" className="border-b border-deadline/50 bg-deadline/15 px-4 py-2 text-sm md:px-8">
               <strong>Not saved.</strong> {saveError}

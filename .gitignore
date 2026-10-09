@@ -27,3 +27,13 @@ dist-ssr
 e2e-artifacts
 test-results
 playwright-report
+
+# Environment files (keep real keys out of Git; only .env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# Supabase CLI local link/connection metadata (project ref, pooler host): never commit
+supabase/.temp/
+supabase/.branches/
+supabase/.env*

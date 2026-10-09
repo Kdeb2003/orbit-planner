@@ -47,6 +47,16 @@ src/
 - **Limitations:** weekly only; no "this and following"; series length ≤ ~3 years and ≤ 7 days per occurrence; "Up next" looks 120 days ahead; two tabs saving at the same moment is last-write-wins (the other tab refreshes on the `storage` event).
 - **Future Supabase:** `recurring_series` table (JSONB `recurrence`, `timezone`) and `series_exceptions(series_id, original_date, cancelled, override jsonb)` with PK `(series_id, original_date)`; events map to `events`. Keep the store interfaces; they will become async. Add RLS per `user_id`.
 
+## Supabase and authentication (Phase 3A)
+- Setup, env vars, redirect URLs and manual steps: [docs/supabase-setup.md](docs/supabase-setup.md). Schema, RLS and how to apply: [supabase/README.md](supabase/README.md).
+- Env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` (+ optional `VITE_ENABLE_SIGNUP`) in git-ignored `.env.local`. `getSupabaseConfig` validates them and refuses secret/service-role keys. NEVER add a secret key, DB password or service-role key to the frontend, tests, docs or Git.
+- Unconfigured = local-only mode (app works, sign-in routes show setup help). Configured = every app route is behind `RequireAuth`.
+- Auth is PKCE (`?code=` callbacks) because HashRouter owns the URL fragment. Email redirect = `origin + BASE_URL`. Do not use implicit flow or hash redirects.
+- `src/auth/authController.ts` is the only code that talks to `supabase.auth`; UI uses `useAuth()`. It never reads/writes `orbit.*` storage keys, and ORBIT never stores passwords/tokens (supabase-js owns the session).
+- The SQL in `supabase/migrations/` is **deployed to the hosted project** (applied files are immutable: change the schema only with NEW migrations). It is exercised in `supabase/tests/migrations.test.ts` (PGlite simulation). Live checks so far: authenticated `SELECT` = 200/empty, anonymous = 401 `42501`. Cross-user isolation and writes on the hosted project are unverified until Phase 3B. Never run SQL against, or write to, the hosted project, or use a service-role key, without explicit approval. `supabase/.temp/` (CLI link metadata) is git-ignored; never commit it.
+- Calendar data is still local-only and NOT per-user. The UI must keep saying so until Phase 3B ships. Phase 3B: cloud CRUD behind the existing store interfaces, sync, per-user local namespacing, safe/idempotent import of local events (client UUIDs are preserved), conflict handling.
+- E2E: the `auth` Playwright project serves the app with a dummy config pointing at its own origin and mocks `/auth/v1/*`; the `local` project forces Supabase to unconfigured (empty env). Real credentials are never used in tests.
+
 ## Coding standards
 - TypeScript everywhere; no `any`.
 - Function components, named exports (default export only for `App`).
@@ -74,7 +84,8 @@ src/
 1. Phase 1 (done): app shell, dark UI
 2. Phase 2A (current): event model, localStorage persistence, working calendar and event CRUD
 2b. Phase 2B: recurring timetables and exceptions
-3. Supabase auth + sync (laptop and phone), RLS
+3a. (done) Supabase sign-in, schema + RLS migrations (unapplied)
+3b. Cloud CRUD + sync (laptop and phone), safe local import
 4. PWA install, offline support
 5. GitHub Pages deployment
 6. Later: schedule import

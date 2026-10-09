@@ -50,8 +50,12 @@ function sanitizeException(v: unknown): SeriesException | null {
   const e = v as Record<string, unknown>
   if (typeof e.originalDate !== 'string' || !isValidDateKey(e.originalDate)) return null
   if (e.cancelled !== undefined && typeof e.cancelled !== 'boolean') return null
-  const override = sanitizeOverride(e.override)
-  if (override === null) return null
+  const parsed = sanitizeOverride(e.override)
+  if (parsed === null) return null
+  // An empty override changes nothing; keep the exception only if it cancels (matches the
+  // database rule exception_has_effect).
+  const override = parsed && Object.keys(parsed).length > 0 ? parsed : undefined
+  if (!e.cancelled && !override) return null
   return {
     originalDate: e.originalDate,
     ...(e.cancelled && { cancelled: true }),
