@@ -35,6 +35,9 @@ const base: EventFormValues = {
   endTime: '11:30',
   location: '',
   description: '',
+  courseCode: '',
+  sessionType: '',
+  groupLabel: '',
 }
 
 describe('eventsOnDay', () => {

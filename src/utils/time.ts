@@ -32,17 +32,28 @@ export interface ZonedParts {
   second: number
 }
 
+const formatters = new Map<string, Intl.DateTimeFormat>()
+
+function partsFormatter(timeZone: string): Intl.DateTimeFormat {
+  let f = formatters.get(timeZone)
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      hourCycle: 'h23',
+    })
+    formatters.set(timeZone, f)
+  }
+  return f
+}
+
 export function getZonedParts(d: Date, timeZone: string = TIME_ZONE): ZonedParts {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: 'numeric',
-    second: 'numeric',
-    hourCycle: 'h23',
-  }).formatToParts(d)
+  const parts = partsFormatter(timeZone).formatToParts(d)
   const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
   return {
     year: get('year'),
@@ -75,20 +86,44 @@ export function timeKey(d: Date, timeZone: string = TIME_ZONE): string {
   return `${pad(p.hour)}:${pad(p.minute)}`
 }
 
+export type LocalTimeStatus = 'ok' | 'nonexistent' | 'ambiguous'
+
 /**
- * Converts a wall-clock date/time in `timeZone` to a UTC instant.
- * Non-existent times (spring-forward gap) move forward by the gap;
- * ambiguous times (autumn fall-back) resolve to the later occurrence.
+ * Resolves a wall-clock date/time in `timeZone` to a UTC instant.
+ * Policy: a time skipped by spring-forward is `nonexistent` and moves forward
+ * by the gap (02:30 -> 03:30); a time repeated at fall-back is `ambiguous` and
+ * resolves to the FIRST occurrence (the earlier instant, summer time).
  */
-export function zonedTimeToUtc(day: DateKey, time: string, timeZone: string = TIME_ZONE): Date {
+export function resolveLocalTime(
+  day: DateKey,
+  time: string,
+  timeZone: string = TIME_ZONE,
+): { status: LocalTimeStatus; utc: Date } {
   const [y, m, d] = day.split('-').map(Number)
   const [h, min] = time.split(':').map(Number)
-  const guess = Date.UTC(y, m - 1, d, h, min)
-  const off1 = zoneOffsetMs(new Date(guess), timeZone)
-  let t = guess - off1
-  const off2 = zoneOffsetMs(new Date(t), timeZone)
-  if (off2 !== off1) t = guess - off2
-  return new Date(t)
+  const wanted = Date.UTC(y, m - 1, d, h, min)
+  const offsets = [
+    ...new Set([
+      zoneOffsetMs(new Date(wanted - 86_400_000), timeZone),
+      zoneOffsetMs(new Date(wanted + 86_400_000), timeZone),
+    ]),
+  ]
+  const candidates = offsets
+    .map((o) => wanted - o)
+    .filter((t) => {
+      const p = getZonedParts(new Date(t), timeZone)
+      return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) === wanted
+    })
+    .sort((a, b) => a - b)
+  if (candidates.length === 0) {
+    return { status: 'nonexistent', utc: new Date(wanted - Math.min(...offsets)) }
+  }
+  return { status: candidates.length > 1 ? 'ambiguous' : 'ok', utc: new Date(candidates[0]) }
+}
+
+/** See `resolveLocalTime` for the DST policy. */
+export function zonedTimeToUtc(day: DateKey, time: string, timeZone: string = TIME_ZONE): Date {
+  return resolveLocalTime(day, time, timeZone).utc
 }
 
 /** Whether `day` is a real calendar date in 'YYYY-MM-DD' form. */
@@ -145,6 +180,11 @@ export function monthGrid(day: DateKey): DateKey[] {
   const first = `${day.slice(0, 7)}-01`
   const start = startOfWeek(first)
   return Array.from({ length: 42 }, (_, i) => addDays(start, i))
+}
+
+/** Whole calendar days from `a` to `b` (negative if b is earlier). */
+export function daysBetween(a: DateKey, b: DateKey): number {
+  return Math.round((keyToUtc(b).getTime() - keyToUtc(a).getTime()) / 86_400_000)
 }
 
 export function isSameMonth(a: DateKey, b: DateKey): boolean {

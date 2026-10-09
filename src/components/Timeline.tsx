@@ -1,12 +1,12 @@
-import type { CalendarEvent } from '../types'
+import type { ScheduledItem } from '../types'
 import type { DateKey } from '../utils/time'
 import { EventItem } from './EventItem'
 
 interface TimelineProps {
-  events: CalendarEvent[]
+  events: ScheduledItem[]
   day: DateKey
   now: Date
-  onSelect?: (event: CalendarEvent) => void
+  onSelect?: (event: ScheduledItem) => void
 }
 
 export function Timeline({ events, day, now, onSelect }: TimelineProps) {

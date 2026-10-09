@@ -114,3 +114,17 @@ describe('invalid storage data', () => {
     spy.mockRestore()
   })
 })
+
+describe('university metadata on one-off events', () => {
+  const base = { ...input, id: 'a', createdAt: input.start, updatedAt: input.start }
+
+  it('accepts valid metadata and rejects an unknown session type', () => {
+    expect(parseStoredEvents(JSON.stringify([{ ...base, courseCode: 'CS1', sessionType: 'seminar', groupLabel: 'G1' }]))).toHaveLength(1)
+    expect(parseStoredEvents(JSON.stringify([{ ...base, sessionType: 'bogus' }]))).toEqual([])
+    expect(parseStoredEvents(JSON.stringify([{ ...base, courseCode: 5 }]))).toEqual([])
+  })
+
+  it('Phase 2A records (no metadata) still load unchanged', () => {
+    expect(parseStoredEvents(JSON.stringify([base]))).toEqual([base])
+  })
+})

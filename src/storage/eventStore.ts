@@ -1,26 +1,25 @@
-import { EVENT_CATEGORIES } from '../types'
+import { EVENT_CATEGORIES, SESSION_TYPES } from '../types'
 import type { CalendarEvent, EventInput } from '../types'
+import { createCollection, parseCollection } from './collection'
+import type { StorageLike } from './collection'
+import { saveStatus } from './saveStatus'
+import type { SaveStatus } from './saveStatus'
 
+export type { StorageLike } from './collection'
+
+/** Key unchanged since Phase 2A: existing one-off events load as-is, no migration needed. */
 export const STORAGE_KEY = 'orbit.events.v1'
 
-/** The subset of the Web Storage API we use. */
-export interface StorageLike {
-  getItem(key: string): string | null
-  setItem(key: string, value: string): void
-}
-
 export interface EventStore {
-  /** Stable reference until the data changes (for useSyncExternalStore). */
   getSnapshot(): readonly CalendarEvent[]
   subscribe(listener: () => void): () => void
   create(input: EventInput): CalendarEvent
   update(id: string, input: EventInput): CalendarEvent | undefined
   remove(id: string): boolean
-  /** Re-read from storage, e.g. after another tab changed it. */
   reload(): void
 }
 
-const isIso = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v))
+export const isIso = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v))
 const isOptionalString = (v: unknown) => v === undefined || typeof v === 'string'
 
 export function isCalendarEvent(v: unknown): v is CalendarEvent {
@@ -40,103 +39,55 @@ export function isCalendarEvent(v: unknown): v is CalendarEvent {
     e.timeZone.length > 0 &&
     isOptionalString(e.location) &&
     isOptionalString(e.description) &&
+    isOptionalString(e.courseCode) &&
+    isOptionalString(e.groupLabel) &&
+    (e.sessionType === undefined || (SESSION_TYPES as readonly unknown[]).includes(e.sessionType)) &&
     isIso(e.createdAt) &&
     isIso(e.updatedAt)
   )
 }
 
+const sanitizeEvent = (v: unknown) => (isCalendarEvent(v) ? { item: v } : null)
+
 /** Parses raw storage text; returns only valid records, never throws. */
 export function parseStoredEvents(raw: string | null): CalendarEvent[] {
-  if (!raw) return []
-  try {
-    const data: unknown = JSON.parse(raw)
-    if (!Array.isArray(data)) return []
-    const seen = new Set<string>()
-    return data.filter((item): item is CalendarEvent => {
-      if (!isCalendarEvent(item) || seen.has(item.id)) return false
-      seen.add(item.id)
-      return true
-    })
-  } catch {
-    return []
-  }
+  return parseCollection(raw, sanitizeEvent).items
 }
 
 export function createEventStore(
   storage: StorageLike | null,
   newId: () => string = () => crypto.randomUUID(),
   now: () => Date = () => new Date(),
+  status: SaveStatus = saveStatus,
 ): EventStore {
-  const listeners = new Set<() => void>()
-
-  function load(): CalendarEvent[] {
-    if (!storage) return []
-    try {
-      const raw = storage.getItem(STORAGE_KEY)
-      const events = parseStoredEvents(raw)
-      // Keep a copy of unreadable data so a later save can't destroy it.
-      if (raw && events.length === 0 && raw.trim() !== '[]') {
-        try {
-          storage.setItem(`${STORAGE_KEY}.backup`, raw)
-        } catch {
-          /* ignore */
-        }
-      }
-      return events
-    } catch {
-      return []
-    }
-  }
-
-  let cache = load()
-
-  function commit(next: CalendarEvent[]) {
-    cache = next
-    try {
-      storage?.setItem(STORAGE_KEY, JSON.stringify(next))
-    } catch (err) {
-      console.error('ORBIT: could not save events to localStorage', err)
-    }
-    listeners.forEach((l) => l())
-  }
+  const col = createCollection<CalendarEvent>(storage, STORAGE_KEY, sanitizeEvent, status)
 
   return {
-    getSnapshot: () => cache,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
+    getSnapshot: col.getSnapshot,
+    subscribe: col.subscribe,
+    reload: col.reload,
     create(input) {
       const ts = now().toISOString()
       const event: CalendarEvent = { ...input, id: newId(), createdAt: ts, updatedAt: ts }
-      commit([...cache, event])
+      col.commit([...col.getSnapshot(), event])
       return event
     },
     update(id, input) {
-      const existing = cache.find((e) => e.id === id)
+      const existing = col.getSnapshot().find((e) => e.id === id)
       if (!existing) return undefined
-      const updated: CalendarEvent = {
-        ...input,
-        id,
-        createdAt: existing.createdAt,
-        updatedAt: now().toISOString(),
-      }
-      commit(cache.map((e) => (e.id === id ? updated : e)))
+      const updated: CalendarEvent = { ...input, id, createdAt: existing.createdAt, updatedAt: now().toISOString() }
+      col.commit(col.getSnapshot().map((e) => (e.id === id ? updated : e)))
       return updated
     },
     remove(id) {
-      if (!cache.some((e) => e.id === id)) return false
-      commit(cache.filter((e) => e.id !== id))
+      if (!col.getSnapshot().some((e) => e.id === id)) return false
+      col.commit(col.getSnapshot().filter((e) => e.id !== id))
       return true
-    },
-    reload() {
-      cache = load()
-      listeners.forEach((l) => l())
     },
   }
 }
 
-function browserStorage(): StorageLike | null {
+export function browserStorage(): StorageLike | null {
   try {
     return typeof localStorage === 'undefined' ? null : localStorage
   } catch {
