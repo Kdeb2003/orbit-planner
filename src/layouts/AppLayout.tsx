@@ -2,11 +2,13 @@ import { Orbit } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { EventEditorProvider } from '../components/EventEditorProvider'
 import { useNow } from '../hooks/useNow'
+import { useSaveError } from '../hooks/useSaveError'
 import { formatDate } from '../utils/time'
 import { navItems } from './navItems'
 
 export function AppLayout() {
   const now = useNow(60_000)
+  const saveError = useSaveError()
 
   return (
     <EventEditorProvider>
@@ -48,6 +50,11 @@ export function AppLayout() {
             </time>
           </header>
 
+          {saveError && (
+            <div role="alert" className="border-b border-deadline/50 bg-deadline/15 px-4 py-2 text-sm md:px-8">
+              <strong>Not saved.</strong> {saveError}
+            </div>
+          )}
           <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 md:px-8 md:pb-10">
             <Outlet />
           </main>

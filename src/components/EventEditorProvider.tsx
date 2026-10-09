@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { EventEditorContext } from '../hooks/useEventEditor'
 import type { EventEditorApi } from '../hooks/useEventEditor'
-import type { CalendarEvent } from '../types'
+import type { ScheduledItem } from '../types'
 import { dateKey } from '../utils/time'
 import type { DateKey } from '../utils/time'
 import { EventDialog } from './EventDialog'
 
 interface EditorState {
-  event: CalendarEvent | null
+  event: ScheduledItem | null
   day: DateKey
 }
 

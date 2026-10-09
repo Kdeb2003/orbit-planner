@@ -6,7 +6,10 @@ import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
 import { useEvents } from '../hooks/useEvents'
 import { useNow } from '../hooks/useNow'
+import { useSeries } from '../hooks/useSeries'
+import type { ScheduledItem } from '../types'
 import { eventsOnDay } from '../utils/events'
+import { expandItems } from '../utils/schedule'
 import {
   addDays,
   addMonths,
@@ -30,13 +33,31 @@ export function CalendarPage() {
   const now = useNow(60_000)
   const today = dateKey(now)
   const { events } = useEvents()
+  const { series, setException, clearException } = useSeries()
   const editor = useEventEditor()
   const [selected, setSelected] = useState(() => dateKey(new Date()))
   const [view, setView] = useState<View>('month')
 
   const days = useMemo(() => (view === 'month' ? monthGrid(selected) : weekDays(selected)), [view, selected])
-  const byDay = useMemo(() => new Map(days.map((d) => [d, eventsOnDay(events, d)])), [days, events])
-  const selectedEvents = eventsOnDay(events, selected)
+  // Occurrences are generated only for the days on screen. Cancelled ones are
+  // kept (for the Restore action) but hidden from the month grid.
+  const all = useMemo(
+    () => expandItems(events, series, days[0], days[days.length - 1], { includeCancelled: true }),
+    [events, series, days],
+  )
+  const byDay = useMemo(() => {
+    const source = view === 'month' ? all.filter((i) => !i.cancelled) : all
+    return new Map(days.map((d) => [d, eventsOnDay(source, d)]))
+  }, [all, days, view])
+  const selectedEvents = eventsOnDay(all, selected)
+
+  function restore(item: ScheduledItem) {
+    if (!item.seriesId || !item.originalDate) return
+    const ex = series.find((s) => s.id === item.seriesId)?.exceptions.find((x) => x.originalDate === item.originalDate)
+    if (ex?.override && Object.keys(ex.override).length) {
+      setException(item.seriesId, { originalDate: item.originalDate, override: ex.override })
+    } else clearException(item.seriesId, item.originalDate)
+  }
 
   const step = (dir: 1 | -1) => setSelected(view === 'month' ? addMonths(selected, dir) : addDays(selected, 7 * dir))
   const title =
@@ -102,6 +123,8 @@ export function CalendarPage() {
                   type="button"
                   onClick={() => setSelected(d)}
                   aria-pressed={isSelected}
+                  data-date={d}
+                  data-count={evs.length}
                   aria-current={isToday ? 'date' : undefined}
                   aria-label={`${formatDayLong(d)}, ${evs.length} ${evs.length === 1 ? 'event' : 'events'}`}
                   className={`flex min-h-14 min-w-0 flex-col items-stretch gap-1 rounded-lg border p-1 text-left sm:min-h-24 sm:p-1.5 ${
@@ -158,7 +181,7 @@ export function CalendarPage() {
                   <ul className="space-y-2">
                     {evs.map((e) => (
                       <li key={e.id}>
-                        <EventItem event={e} day={d} onSelect={editor.openEdit} />
+                        <EventItem event={e} day={d} onSelect={editor.openEdit} onRestore={restore} />
                       </li>
                     ))}
                   </ul>
@@ -184,7 +207,7 @@ export function CalendarPage() {
             <ul className="space-y-2">
               {selectedEvents.map((e) => (
                 <li key={e.id}>
-                  <EventItem event={e} day={selected} onSelect={editor.openEdit} />
+                  <EventItem event={e} day={selected} onSelect={editor.openEdit} onRestore={restore} />
                 </li>
               ))}
             </ul>

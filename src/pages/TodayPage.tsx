@@ -1,4 +1,5 @@
 import { BookOpen, Briefcase, CalendarPlus, GraduationCap, Upload } from 'lucide-react'
+import { useMemo } from 'react'
 import { categoryStyle } from '../components/categories'
 import { EventItem } from '../components/EventItem'
 import { Timeline } from '../components/Timeline'
@@ -7,9 +8,11 @@ import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
 import { useEvents } from '../hooks/useEvents'
 import { useNow } from '../hooks/useNow'
+import { useSeries } from '../hooks/useSeries'
 import type { EventCategory } from '../types'
 import { currentEvent, eventsOnDay, nextEvent, summarizeDay } from '../utils/events'
-import { dateKey, formatClock, formatDayShort, formatDuration, greeting, TIME_ZONE } from '../utils/time'
+import { expandItems } from '../utils/schedule'
+import { addDays, dateKey, formatClock, formatDayShort, formatDuration, greeting, TIME_ZONE } from '../utils/time'
 
 const summaries: { category: EventCategory; icon: typeof BookOpen }[] = [
   { category: 'university', icon: BookOpen },
@@ -17,15 +20,26 @@ const summaries: { category: EventCategory; icon: typeof BookOpen }[] = [
   { category: 'study', icon: GraduationCap },
 ]
 
+/** How far ahead "Up next" looks for repeating events. */
+const LOOKAHEAD_DAYS = 120
+
 export function TodayPage() {
   const now = useNow(1000)
   const { events } = useEvents()
+  const { series } = useSeries()
   const editor = useEventEditor()
   const today = dateKey(now)
-  const todays = eventsOnDay(events, today)
-  const current = currentEvent(events, now)
-  const upcoming = nextEvent(events, now)
+
+  // Occurrences are generated only for the past week (long or overnight events) through the look-ahead window.
+  const items = useMemo(
+    () => expandItems(events, series, addDays(today, -7), addDays(today, LOOKAHEAD_DAYS)),
+    [events, series, today],
+  )
+  const todays = eventsOnDay(items, today)
+  const current = currentEvent(items, now)
+  const upcoming = nextEvent(items, now)
   const upcomingDay = upcoming ? dateKey(new Date(upcoming.start), upcoming.timeZone) : today
+  const hasAnything = events.length > 0 || series.length > 0
 
   return (
     <div className="space-y-6">
@@ -71,7 +85,7 @@ export function TodayPage() {
           ) : (
             <div className="py-6 text-center">
               <p className="text-sm text-muted">
-                {events.length ? 'Nothing scheduled for today.' : 'Your calendar is empty. Add your first event to get started.'}
+                {hasAnything ? 'Nothing scheduled for today.' : 'Your calendar is empty. Add your first event to get started.'}
               </p>
               <button
                 type="button"
@@ -100,7 +114,7 @@ export function TodayPage() {
                 {upcomingDay !== today && <p className="text-xs text-muted">{formatDayShort(upcomingDay)}</p>}
               </div>
             ) : (
-              <p className="text-sm text-muted">No upcoming events.</p>
+              <p className="text-sm text-muted">No upcoming events in the next {Math.round(LOOKAHEAD_DAYS / 30)} months.</p>
             )}
           </Card>
 
