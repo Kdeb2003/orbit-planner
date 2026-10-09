@@ -1,8 +1,12 @@
 import type { EventCategory } from '../types'
 
+// Class names are written out in full so Tailwind can detect them.
 export const categoryStyle: Record<EventCategory, { label: string; dot: string; text: string }> = {
-  class: { label: 'Class', dot: 'bg-classes', text: 'text-classes' },
+  university: { label: 'University', dot: 'bg-university', text: 'text-university' },
   work: { label: 'Work', dot: 'bg-work', text: 'text-work' },
   study: { label: 'Study', dot: 'bg-study', text: 'text-study' },
-  personal: { label: 'Personal', dot: 'bg-other', text: 'text-other' },
+  german: { label: 'German', dot: 'bg-german', text: 'text-german' },
+  research: { label: 'Research', dot: 'bg-research', text: 'text-research' },
+  personal: { label: 'Personal', dot: 'bg-personal', text: 'text-personal' },
+  deadline: { label: 'Deadline', dot: 'bg-deadline', text: 'text-deadline' },
 }
