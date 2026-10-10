@@ -76,6 +76,13 @@ src/
 - A dedicated Playwright project, `pages` (`e2e/pages-deploy.e2e.ts`, port 5201), builds with empty Supabase env and serves the result via `vite preview` to approximate the deployed site: no 404s for JS/CSS/favicon, HashRouter routes survive a hard refresh, the sign-in route renders, no horizontal overflow at 390px/320px. `page.goto()` calls in that spec must be relative (no leading slash) — a leading slash resolves against `baseURL` by replacing its path, silently dropping the `/orbit-planner/` prefix.
 - No deployment has been triggered and no Supabase dashboard settings have been changed as part of preparing this phase; see docs/deployment.md for the manual steps (repository variables, Supabase redirect URLs) still required before the first real deploy.
 
+## Timetable PDF import (Phase 4A.1) — see [docs/timetable-import/](docs/timetable-import/README.md)
+- `src/timetable/utn/` parses the UTN semester timetable PDF into an intermediate model (`TimetableSession`) with PDF.js. **Parse-and-validate only:** no UI, no calendar writes, no cloud code, nothing wired into the app bundle. Mapping to events is a tested draft (`mapping.ts`); real import is Phase 4A.2.
+- Method: geometry, not text order. `pdfLayout.ts` turns a PDF.js page into upright text boxes + filled rectangles; `tables.ts` finds the title bar, header band, `Slot N` rows and grid cells (a merged same-colour rectangle is split on the grid; tables continue across pages); `sessions.ts` joins identical consecutive slot cards **only across 15-minute breaks, never across lunch**.
+- Never invent or correct source data: undated week 1 and the duplicated `05.03.2027` (week 23 Saturday) are reported as anomalies and the date is withheld. Use printed dates, never week arithmetic. Prefer dated one-off events over inferred weekly series.
+- Raw PDFs, `import-output/`, `orbit-import-inputs/` and `private/` are git-ignored (`*.pdf` is NOT blanket-ignored). Never commit rosters or the user's selected schedule; the committed fixture (`__fixtures__`) holds only the university's published layout geometry.
+- Tests: `src/timetable/utn/*.test.ts` (fixture based, always run) and `tests/utn/real-pdf.test.ts` (uses the real PDF when present, skipped otherwise). Cross-engine check: `scripts/utn-crosscheck.py`. Modules in `src/timetable/utn/` use explicit `.ts` import extensions so the CLI scripts can run them natively under Node.
+
 ## Coding standards
 - TypeScript everywhere; no `any`.
 - Function components, named exports (default export only for `App`).
