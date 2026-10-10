@@ -24,6 +24,9 @@ export const SELECTED_COURSES: readonly SelectedCourseDef[] = [
   { code: 'W26M-Deutsch A2', displayName: 'German A2', category: 'german' },
 ]
 
+/** Review reason for a session whose printed date is missing or unusable (matched by the review UI). */
+export const NO_DATE_REASON = 'no usable date in the source'
+
 export type SelectionStatus = 'confirmed' | 'needs-review'
 
 export interface SelectedSession {
@@ -69,7 +72,7 @@ export function selectSessions(sessions: readonly TimetableSession[], courses: r
       reasons.push(`optional group printed (${session.groups.join(', ')}); attendance not assumed`)
     }
     if (session.variant) reasons.push(`sub-group/variant "${session.variant}" printed`)
-    if (session.date === null) reasons.push('no usable date in the source')
+    if (session.date === null) reasons.push(NO_DATE_REASON)
     if (session.confidence === 'low') reasons.push('extraction flagged errors for this card')
     if (session.issues.some((i) => i.code === 'duplicate-candidate')) reasons.push('another card has the same identity')
 

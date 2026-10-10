@@ -1,4 +1,6 @@
-# Phase 4A.2 plan: importing the timetable through the app (not implemented)
+# Phase 4A.2 plan: importing the timetable through the app
+
+> **Progress:** checkpoint 1 (steps 1-5 below, preview only) is implemented, see [import-review-ui.md](import-review-ui.md). Steps 6-8 (confirmation, cloud write, updated-timetable diff) and durable course preferences are **not** implemented, and no migration was added.
 
 Goal: the user picks the timetable PDF in ORBIT, reviews what was found, and explicitly confirms; only then are dated one-off events written to their own cloud calendar. Everything below builds on `src/timetable/utn/` (Phase 4A.1) and the existing cloud/migration layers.
 

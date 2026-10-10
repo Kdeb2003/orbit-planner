@@ -1,5 +1,6 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { categoryStyle } from '../components/categories'
 import { CalendarDataGate } from '../components/CalendarDataGate'
 import { EventItem } from '../components/EventItem'
@@ -70,13 +71,18 @@ export function CalendarPage() {
         <h1 className="text-2xl font-semibold tracking-tight" aria-live="polite">
           {title}
         </h1>
-        <button
-          type="button"
-          onClick={() => editor.openNew(selected)}
-          className="flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium hover:bg-accent/90"
-        >
-          <Plus size={18} aria-hidden /> Add event
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/import-timetable" className={`${ghost} gap-2`}>
+            <Upload size={18} aria-hidden /> Import timetable
+          </Link>
+          <button
+            type="button"
+            onClick={() => editor.openNew(selected)}
+            className="flex min-h-11 items-center gap-2 rounded-xl bg-accent px-4 text-sm font-medium hover:bg-accent/90"
+          >
+            <Plus size={18} aria-hidden /> Add event
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
