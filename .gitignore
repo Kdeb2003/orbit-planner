@@ -37,3 +37,10 @@ playwright-report
 supabase/.temp/
 supabase/.branches/
 supabase/.env*
+
+# Timetable / roster import work: raw inputs and generated review data are personal; never commit them.
+# (PDFs are NOT blanket-ignored: intentional PDF documentation stays trackable.)
+/import-output/
+/orbit-import-inputs/
+/private/
+/scratch/
