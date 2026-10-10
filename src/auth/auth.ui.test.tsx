@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
+import { FakeCloud } from '../cloud/fakeCloudApi'
 import { createAuthController, createUnconfiguredController } from './authController'
 import type { AuthController } from './authController'
 import { AuthProvider } from './AuthProvider'
@@ -23,11 +24,11 @@ const localEvents = JSON.stringify([
   },
 ])
 
-function setup(controller: AuthController, path = '/', signupEnabled = true) {
+function setup(controller: AuthController, path = '/', signupEnabled = true, cloud = new FakeCloud()) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AuthProvider controller={controller} signupEnabled={signupEnabled}>
-        <AppRoutes />
+        <AppRoutes createApi={(id) => cloud.apiFor(id)} />
       </AuthProvider>
     </MemoryRouter>,
   )
@@ -40,6 +41,7 @@ async function settled() {
 }
 
 const appIsVisible = () => screen.queryByText('Quick actions') !== null
+const appLoaded = () => waitFor(() => expect(appIsVisible()).toBe(true))
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 
 beforeEach(() => {
@@ -86,16 +88,16 @@ describe('protected routes', () => {
     const f = createFakeAuthClient(fakeSession)
     setup(createAuthController(f.client, opts), '/')
     await settled()
-    expect(appIsVisible()).toBe(true)
+    await appLoaded()
     expect(screen.queryByRole('heading', { name: 'Sign in' })).toBeNull()
-    expect(screen.getByTestId('local-data-notice').textContent).toMatch(/not backed up/)
+    expect(screen.getByTestId('local-data-notice').textContent).toMatch(/stored in your account/)
   })
 
   it('sends an already signed-in user away from the sign-in page', async () => {
     const f = createFakeAuthClient(fakeSession)
     setup(createAuthController(f.client, opts), '/login')
     await settled()
-    expect(appIsVisible()).toBe(true)
+    await appLoaded()
   })
 })
 
@@ -140,7 +142,7 @@ describe('login and logout', () => {
     const f = createFakeAuthClient(fakeSession)
     setup(createAuthController(f.client, opts), '/')
     await settled()
-    expect(appIsVisible()).toBe(true)
+    await appLoaded()
     act(() => f.emit('SIGNED_OUT', null))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy())
     expect(screen.getByRole('status').textContent).toMatch(/session has ended/)
@@ -238,6 +240,7 @@ describe('existing local data is preserved', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /Sign out/ })[0])
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy())
 
+    expect(screen.queryByText('Local only event')).toBeNull() // never shown as if it belonged to the signed-in account
     expect(localStorage.getItem(EVENTS_KEY)).toBe(localEvents) // byte-identical
     expect(localStorage.getItem('orbit.series.v1')).toBe('[]')
     // The auth layer wrote nothing of its own (supabase-js owns session storage) and no credentials anywhere.
@@ -245,11 +248,11 @@ describe('existing local data is preserved', () => {
     expect(JSON.stringify({ ...localStorage })).not.toMatch(/password/i)
   })
 
-  it('does not claim local events are backed up', async () => {
+  it('says clearly that events saved in this browser are not part of the cloud calendar', async () => {
     const f = createFakeAuthClient(fakeSession)
     setup(createAuthController(f.client, opts), '/settings')
     await settled()
-    expect(screen.getAllByText(/only in this browser/).length).toBeGreaterThan(1) // banner + account card
-    expect(screen.queryByText(/synced|backed up to the cloud/i)).toBeNull()
+    await waitFor(() => expect(screen.getAllByText(/stored in your account/).length).toBeGreaterThan(0))
+    expect(screen.getByText(/Events saved in this browser before signing in/)).toBeTruthy()
   })
 })

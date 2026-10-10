@@ -22,8 +22,8 @@ export default defineConfig({
     locale: 'en-GB',
   },
   projects: [
-    { name: 'local', testMatch: '**/*.e2e.ts', testIgnore: '**/auth.e2e.ts', use: { baseURL: 'http://localhost:5199' } },
-    { name: 'auth', testMatch: '**/auth.e2e.ts', use: { baseURL: 'http://localhost:5198' } },
+    { name: 'local', testMatch: '**/*.e2e.ts', testIgnore: ['**/auth.e2e.ts', '**/cloud.e2e.ts'], use: { baseURL: 'http://localhost:5199' } },
+    { name: 'auth', testMatch: ['**/auth.e2e.ts', '**/cloud.e2e.ts'], use: { baseURL: 'http://localhost:5198' } },
   ],
   webServer: [
     {

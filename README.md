@@ -2,7 +2,7 @@
 
 A personal planner for classes, work shifts, study sessions, and deadlines. Dark, responsive, and (eventually) installable on your phone.
 
-> Status: Phase 3A complete — Supabase email sign-in works against the hosted project and the database schema with Row Level Security is deployed. Calendar data is still saved **in this browser only**: cloud sync is not implemented and nothing from your calendar has been uploaded or migrated.
+> Status: Phase 3B — with Supabase configured, signed-in users get their own **cloud calendar** (events, repeating schedules, exceptions) that syncs between devices, plus an explicit, opt-in import of events saved earlier in the browser. Tested with mocks **and against the real hosted project** using temporary synthetic records (since deleted); **no existing calendar data has been uploaded** and hosted cross-user isolation is not yet tested. Without Supabase configuration ORBIT stays local-only.
 
 ## Features
 
@@ -13,6 +13,10 @@ A personal planner for classes, work shifts, study sessions, and deadlines. Dark
 - **Overlap warnings** (non-blocking) for one-off and repeating events
 - Optional university details: course code, session type (main, tutorial, seminar, practical, other) and group label
 - If the browser cannot save, a banner says so instead of pretending it worked
+
+## Cloud calendar
+
+Signed-in users read and write their own data in Supabase (Row Level Security enforces ownership). The calendar refreshes on sign-in, after saves, when the tab regains focus, when the network returns and every minute, so changes from another device appear without signing out. Saves are confirmed by the server before they appear; a failed save is shown as **not saved** and can be retried. Events saved in this browser *before* signing in are **not** mixed in: Settings offers a backup download and a previewed, confirmed, verified, repeat-safe import that never changes or deletes the browser data. Known limits (last-writer-wins exceptions, non-atomic series update, no offline write queue) and exactly what was verified live versus mocked: [docs/cloud-sync.md](docs/cloud-sync.md).
 
 ## Sign-in (optional)
 
@@ -38,7 +42,7 @@ npm run preview  # serve the production build
 2. Calendar and event management with local storage (done)
 2b. Recurring schedules, exceptions and conflicts (done)
 3a. Supabase sign-in + secure schema, deployed and verified (done; nothing synced yet)
-3b. **(next)** Cloud CRUD, cross-device sync, safe import of existing local events (duplicate prevention, confirmation, conflict handling)
+3b. **Cloud CRUD, cross-device sync, safe local-data import (implemented; hosted CRUD/DST/concurrency/import verified with synthetic data; two-account isolation still untested)**
 4. PWA install and offline support
 5. GitHub Pages deployment
 6. Schedule import

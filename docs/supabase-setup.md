@@ -2,9 +2,9 @@
 
 ORBIT can sign users in with Supabase Auth (email + password). Without configuration it runs in **local-only mode** exactly as before.
 
-> **Verified live (Phase 3A):** the migrations are deployed to the hosted project (`npx supabase db push`). Against the real Supabase API: the signed-in session is accepted by the Auth server; authenticated `SELECT` on `events`, `recurring_series` and `series_exceptions` returns HTTP 200 with 0 rows; anonymous `SELECT` on all three returns HTTP 401 / PostgreSQL `42501` (permission denied). The dashboard's “0 of 3 tables exposed” indicator does not block the grants-based access above. **Not yet verified on the hosted project:** cross-user isolation and insert/update/delete through the API (Phase 3B integration testing). Cloud calendar sync is **not implemented**, and no local calendar data has been uploaded or migrated.
+> **Verified live (Phase 3A):** the migrations are deployed to the hosted project (`npx supabase db push`). Against the real Supabase API: the signed-in session is accepted by the Auth server; authenticated `SELECT` on `events`, `recurring_series` and `series_exceptions` returns HTTP 200 with 0 rows; anonymous `SELECT` on all three returns HTTP 401 / PostgreSQL `42501` (permission denied). The dashboard's “0 of 3 tables exposed” indicator does not block the grants-based access above. **Not yet verified on the hosted project:** cross-user isolation and insert/update/delete through the API (manual live procedure in [cloud-sync.md](cloud-sync.md)). No local calendar data has been uploaded or migrated.
 
-> Phase 3A adds sign-in only. **Calendar data is not uploaded or synced yet**: events and recurring schedules stay in this browser's `localStorage` (`orbit.events.v1`, `orbit.series.v1`). Signing in does not back anything up, and the UI says so.
+> Sign-in (Phase 3A) is verified live. Cloud calendar read/write (Phase 3B) was also verified against the hosted project with temporary synthetic rows (since deleted); two-account isolation, session expiry, real outages and Realtime are not yet tested. See [cloud-sync.md](cloud-sync.md) for the verification status.
 
 ## 1. Configure the app
 
@@ -62,7 +62,7 @@ src/pages/auth/*            sign-in, register, forgot-password, reset-password, 
 * States: `unconfigured` (local-only) · `loading` · `signed-out` · `signed-in` · `recovery`.
 * Tokens live in supabase-js's own storage entry (`sb-…-auth-token`). ORBIT never stores passwords or tokens itself and the auth layer never touches `orbit.*` keys.
 * Sign-out is local to the current browser (`scope: 'local'`); other devices stay signed in.
-* The local calendar is **not** per-user yet: two accounts using the same browser would share it. Phase 3B associates data with the signed-in user.
+* When signed in, calendar data comes from the user's cloud account only. The old browser storage is not per-user and is therefore never displayed once signed in; it is reachable only through the explicit import in Settings.
 
 ## 6. Manual steps for you
 
@@ -80,4 +80,4 @@ src/pages/auth/*            sign-in, register, forgot-password, reset-password, 
 | `npm test` | config validation, URL handling, error mapping, auth controller, guards/pages (jsdom), SQL migrations + RLS isolation (PGlite) | No: fake client / simulated Postgres |
 | `npm run test:e2e` | real browser, real supabase-js against a mocked Auth API: login, wrong password, session restore, logout, protected routes, register, reset/recovery, expired link, multi-tab sign-out, mobile + desktop | No: Auth API mocked, no network |
 
-Automated tests never touch the hosted project. A one-off, read-only live check (signed-in `SELECT` on all three tables = HTTP 200/0 rows; anonymous = 401 / `42501`) was performed by hand in Phase 3A with a temporary diagnostic that has since been removed. Cross-user isolation and write access on the hosted project are **not** yet covered and need Phase 3B integration tests (two real test users).
+Automated tests never touch the hosted project. Hosted checks were done by hand: in Phase 3A a read-only check (signed-in `SELECT` = HTTP 200/0 rows; anonymous = 401 / `42501`), and in Phase 3B a click-through of synthetic CRUD, series/exception, DST, concurrency, import and cleanup scenarios (summarised in cloud-sync.md; the temporary tooling was removed). Cross-user isolation on the hosted project is **not** covered and needs two real test users.

@@ -32,7 +32,7 @@ export function AccountCard() {
           </span>
         </p>
         <p className="text-xs text-muted">
-          Cloud sync isn’t available yet: your events and schedules are still stored <strong className="text-white">only in this browser</strong> and are not backed up to your account.
+          Your calendar is stored in your account and loads on every device you sign in to. Events saved in this browser before signing in are <strong className="text-white">not</strong> part of it; use the import below to move them (optional, only after you confirm).
         </p>
         <button
           type="button"
