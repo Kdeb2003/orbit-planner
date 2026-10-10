@@ -49,9 +49,13 @@ npm run preview  # serve the production build
 3b. **Cloud CRUD, cross-device sync, safe local-data import (implemented; hosted CRUD/DST/concurrency/import verified with synthetic data; two-account isolation still untested)**
 3c. **GitHub Pages deployment prepared** (production build, CI workflow, redirect-URL docs; see [docs/deployment.md](docs/deployment.md)) — not yet deployed
 4. PWA install and offline support
-5. Schedule import
+5. Schedule import — **timetable PDF preview implemented** (Phase 4A.1 parser + Phase 4A.2 checkpoint 1 review UI at *Import timetable*; **preview only, nothing is saved to the calendar yet**; see [docs/timetable-import/](docs/timetable-import/README.md))
 
 See [CLAUDE.md](CLAUDE.md) for conventions and architecture notes.
+
+## Import timetable (preview)
+
+Open **Calendar → Import timetable** (or the Today quick action) to read a UTN semester timetable PDF. The file is parsed **inside the browser tab** with PDF.js (loaded only when you open the page); it is not uploaded, not stored and not logged. You pick your courses (AI Basic with an explicit Group A/B choice), review every extracted session (date, time, room, type, week, PDF page), see overlapping classes side by side and the anomalies printed in the source, exclude or correct individual sessions, and finish with a summary. **This checkpoint is preview only: nothing is added to your calendar, your account or browser storage.** Saving to the calendar comes in a later checkpoint, after cloud import verification. Details, limits and test coverage: [docs/timetable-import/import-review-ui.md](docs/timetable-import/import-review-ui.md).
 
 ## Data storage
 

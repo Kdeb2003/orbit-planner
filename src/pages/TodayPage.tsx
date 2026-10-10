@@ -1,10 +1,10 @@
 import { BookOpen, Briefcase, CalendarPlus, GraduationCap, Upload } from 'lucide-react'
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { CalendarDataGate } from '../components/CalendarDataGate'
 import { categoryStyle } from '../components/categories'
 import { EventItem } from '../components/EventItem'
 import { Timeline } from '../components/Timeline'
-import { ActionButton } from '../components/ui/ActionButton'
 import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
 import { useCalendar } from '../calendar/CalendarContext'
@@ -127,7 +127,12 @@ export function TodayPage() {
               >
                 <CalendarPlus size={18} aria-hidden /> Add event
               </button>
-              <ActionButton icon={Upload} label="Import schedule" />
+              <Link
+                to="/import-timetable"
+                className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-line px-4 text-sm hover:bg-surface-2"
+              >
+                <Upload size={18} aria-hidden /> Import timetable (preview)
+              </Link>
             </div>
           </Card>
         </div>

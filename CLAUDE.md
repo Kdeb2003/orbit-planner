@@ -83,6 +83,12 @@ src/
 - Raw PDFs, `import-output/`, `orbit-import-inputs/` and `private/` are git-ignored (`*.pdf` is NOT blanket-ignored). Never commit rosters or the user's selected schedule; the committed fixture (`__fixtures__`) holds only the university's published layout geometry.
 - Tests: `src/timetable/utn/*.test.ts` (fixture based, always run) and `tests/utn/real-pdf.test.ts` (uses the real PDF when present, skipped otherwise). Cross-engine check: `scripts/utn-crosscheck.py`. Modules in `src/timetable/utn/` use explicit `.ts` import extensions so the CLI scripts can run them natively under Node.
 
+## Timetable import preview (Phase 4A.2, checkpoint 1) — see [docs/timetable-import/import-review-ui.md](docs/timetable-import/import-review-ui.md)
+- Route `#/import-timetable` (`src/pages/ImportTimetablePage.tsx`, lazy-loaded, inside `RequireAuth`), linked from the Calendar page and the Today quick action. **PREVIEW ONLY: it never writes events** to Supabase, `useCalendar()`/the calendar stores, localStorage, sessionStorage or IndexedDB. `tests/utn/preview-isolation.test.ts` statically forbids storage, network, Supabase/cloud/calendar imports and `console.*` in the preview code; do not weaken it. Saving belongs to a later, separately reviewed checkpoint (and needs the user's explicit approval).
+- Pipeline: `src/timetable/import/loadTimetable.ts` (size limit 25 MB, `%PDF-` check, error mapping, lazy `import('pdfjs-dist/legacy/build/pdf.mjs')` + worker via `…pdf.worker.min.mjs?url`, so the worker URL carries the Vite base path `/orbit-planner/`) → existing `extractFromPdf` → `src/timetable/utn/review.ts` (pure review model: course choices, AI group, exclusions, corrections, clashes, filters, summary). The extracted `TimetableSession`s are never mutated; user choices live in a `ReviewState` in React state only. Use `doc` lifecycle through the loading task (`task.destroy()`), not `doc.destroy()` (not a function in pdfjs-dist 6).
+- Unsupported documents (`extraction.supported === false`, encrypted, damaged, scanned, wrong file, too large) show an error and **no sessions**. Undated or invalid-date sessions are `invalid` and can never be "ready"; a manually entered valid date resolves them. Source anomalies are always shown, even when no selected session is affected.
+- Tests: `tests/utn/layoutPdf.ts` renders the committed minimal fixture into a REAL synthetic PDF (used by `tests/utn/generated-pdf.test.ts` and `e2e/timetableFixtures.ts`), so browser upload tests need no private PDF. Playwright: `e2e/import-timetable*.e2e.ts` (local, responsive at 1440/768/390/320, auth route protection + no cloud writes, production build under `/orbit-planner/`). The optional real-PDF e2e and `tests/utn/real-pdf.test.ts` skip when the PDF is absent.
+
 ## Coding standards
 - TypeScript everywhere; no `any`.
 - Function components, named exports (default export only for `App`).
@@ -114,4 +120,4 @@ src/
 3b. (done, pending merge) Cloud CRUD + sync (laptop and phone), safe local import
 3c. (current) GitHub Pages deployment prepared (production build, CI workflow, redirect-URL docs) — not yet deployed
 4. PWA install, offline support
-5. Later: schedule import
+5. Schedule import: 4A.1 parser (done), 4A.2 checkpoint 1 preview UI (done, preview only), next checkpoint: confirmed import to the cloud calendar

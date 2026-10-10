@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { AuthRoute, RequireAuth } from './auth/guards'
@@ -13,6 +14,9 @@ import { SettingsPage } from './pages/SettingsPage'
 import { StudyPlannerPage } from './pages/StudyPlannerPage'
 import { TodayPage } from './pages/TodayPage'
 
+// Loaded on demand (with PDF.js) so the calendar's main bundle does not grow for a page most visits never open.
+const ImportTimetablePage = lazy(() => import('./pages/ImportTimetablePage').then((m) => ({ default: m.ImportTimetablePage })))
+
 export function AppRoutes({ createApi }: { createApi?: (userId: string) => CloudApi | null } = {}) {
   return (
     <CalendarProvider createApi={createApi}>
@@ -23,6 +27,15 @@ export function AppRoutes({ createApi }: { createApi?: (userId: string) => Cloud
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<TodayPage />} />
           <Route path="calendar" element={<CalendarPage />} />
+
+          <Route
+            path="import-timetable"
+            element={
+              <Suspense fallback={<p role="status" className="py-6 text-sm text-muted">Loading…</p>}>
+                <ImportTimetablePage />
+              </Suspense>
+            }
+          />
           <Route path="study" element={<StudyPlannerPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="settings" element={<SettingsPage />} />
