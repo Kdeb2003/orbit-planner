@@ -1,6 +1,8 @@
 import { HashRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
 import { AuthRoute, RequireAuth } from './auth/guards'
+import { CalendarProvider } from './calendar/CalendarProvider'
+import type { CloudApi } from './cloud/cloudApi'
 import { AppLayout } from './layouts/AppLayout'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { LoginPage } from './pages/auth/LoginPage'
@@ -11,21 +13,23 @@ import { SettingsPage } from './pages/SettingsPage'
 import { StudyPlannerPage } from './pages/StudyPlannerPage'
 import { TodayPage } from './pages/TodayPage'
 
-export function AppRoutes() {
+export function AppRoutes({ createApi }: { createApi?: (userId: string) => CloudApi | null } = {}) {
   return (
-    <Routes>
-      <Route path="login" element={<AuthRoute><LoginPage /></AuthRoute>} />
-      <Route path="register" element={<AuthRoute><RegisterPage /></AuthRoute>} />
-      <Route path="forgot-password" element={<AuthRoute><ForgotPasswordPage /></AuthRoute>} />
-      <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
-        <Route index element={<TodayPage />} />
-        <Route path="calendar" element={<CalendarPage />} />
-        <Route path="study" element={<StudyPlannerPage />} />
-        <Route path="insights" element={<InsightsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="*" element={<TodayPage />} />
-      </Route>
-    </Routes>
+    <CalendarProvider createApi={createApi}>
+      <Routes>
+        <Route path="login" element={<AuthRoute><LoginPage /></AuthRoute>} />
+        <Route path="register" element={<AuthRoute><RegisterPage /></AuthRoute>} />
+        <Route path="forgot-password" element={<AuthRoute><ForgotPasswordPage /></AuthRoute>} />
+        <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
+          <Route index element={<TodayPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="study" element={<StudyPlannerPage />} />
+          <Route path="insights" element={<InsightsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<TodayPage />} />
+        </Route>
+      </Routes>
+    </CalendarProvider>
   )
 }
 

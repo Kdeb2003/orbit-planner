@@ -1,6 +1,7 @@
-import { Cloud, Globe, Smartphone } from 'lucide-react'
+import { Globe, Smartphone } from 'lucide-react'
 import { Card } from '../components/ui/Card'
 import { AccountCard } from '../components/AccountCard'
+import { LocalImportCard } from '../components/LocalImportCard'
 import { ComingSoon } from '../components/ui/ComingSoon'
 import { PageHeader } from '../components/ui/PageHeader'
 import { TIME_ZONE } from '../utils/time'
@@ -10,6 +11,7 @@ export function SettingsPage() {
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="Preferences and sync." />
       <AccountCard />
+      <LocalImportCard />
       <Card title="General">
         <div className="flex items-center justify-between gap-3 text-sm">
           <span className="flex items-center gap-2 text-muted">
@@ -18,10 +20,7 @@ export function SettingsPage() {
           <span>{TIME_ZONE}</span>
         </div>
       </Card>
-      <div className="grid gap-6 sm:grid-cols-2">
-        <ComingSoon icon={Cloud} title="Sync" description="Laptop and phone synchronisation." />
-        <ComingSoon icon={Smartphone} title="Install as app" description="Progressive Web App support." />
-      </div>
+      <ComingSoon icon={Smartphone} title="Install as app" description="Progressive Web App support." />
     </div>
   )
 }

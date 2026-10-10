@@ -1,8 +1,8 @@
 import { Ban, Repeat, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { useEvents } from '../hooks/useEvents'
-import { useSeries } from '../hooks/useSeries'
+import { useCalendar } from '../calendar/CalendarContext'
+import type { OpResult } from '../calendar/types'
 import { EVENT_CATEGORIES, SESSION_TYPES } from '../types'
 import type { RecurringSeries, ScheduledItem, Weekday } from '../types'
 import { conflictLines } from '../utils/conflicts'
@@ -67,9 +67,11 @@ function Field({ label, error, htmlFor, children }: { label: string; error?: str
 
 export function EventDialog({ event, day, onClose }: EventDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null)
-  const { events, create, update, remove } = useEvents()
-  const seriesApi = useSeries()
-  const allSeries = seriesApi.series
+  const { events, series: allSeries, source } = useCalendar()
+  // One id per dialog: if a save is retried after an unclear failure the same row is addressed, never a duplicate.
+  const [newIds] = useState(() => ({ event: crypto.randomUUID(), series: crypto.randomUUID() }))
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const series: RecurringSeries | undefined = event?.seriesId ? allSeries.find((s) => s.id === event.seriesId) : undefined
 
   const initialScope: Scope = event?.seriesId ? (series ? 'choose' : 'missing') : 'single'
@@ -120,6 +122,20 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
     setScope(next)
   }
 
+  /**
+   * Runs one save. The dialog closes ONLY when the data was really saved; otherwise it stays open,
+   * shows why, and the user can retry (nothing is half-claimed as saved).
+   */
+  async function save(op: () => Promise<OpResult>) {
+    setSaving(true)
+    setSaveError(null)
+    setPending(null)
+    const result = await op()
+    setSaving(false)
+    if (result.ok) close()
+    else setSaveError(result.error)
+  }
+
   /** Run `commit` now, or first show warnings the user must acknowledge. */
   function attempt(warnings: Warning[], commit: () => void) {
     const active = warnings.filter((w) => w.lines.length > 0)
@@ -151,9 +167,7 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
         ],
         () => {
           const kept = exceptions.filter((x) => !orphans.includes(x))
-          if (series) seriesApi.update(series.id, input, kept)
-          else seriesApi.create(input)
-          close()
+          void save(() => (series ? source.updateSeries(series.id, input, kept) : source.createSeries(input, newIds.series)))
         },
       )
       return
@@ -171,10 +185,11 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
         const originalDate = event.originalDate!
         const override = overrideFromInput(series, originalDate, input)
         const wasCancelled = series.exceptions.find((x) => x.originalDate === originalDate)?.cancelled
-        if (override || wasCancelled) {
-          seriesApi.setException(series.id, { originalDate, ...(wasCancelled && { cancelled: true }), ...(override && { override }) })
-        } else seriesApi.clearException(series.id, originalDate)
-        close()
+        void save(() =>
+          override || wasCancelled
+            ? source.setException(series.id, { originalDate, ...(wasCancelled && { cancelled: true }), ...(override && { override }) })
+            : source.clearException(series.id, originalDate),
+        )
       })
       return
     }
@@ -182,28 +197,23 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
     const candidate: ScheduledItem = { ...input, id: event?.id ?? 'new', createdAt: nowIso, updatedAt: nowIso }
     const conflicts = conflictsFor([candidate], events, allSeries, (i) => i.id === event?.id)
     attempt([{ heading: 'This overlaps other events:', lines: conflictLines(conflicts) }], () => {
-      if (event) update(event.id, input)
-      else create(input)
-      close()
+      void save(() => (event ? source.updateEvent(event.id, input) : source.createEvent(input, newIds.event)))
     })
   }
 
   function cancelOccurrence() {
     if (!event?.originalDate || !series) return
     const existing = series.exceptions.find((x) => x.originalDate === event.originalDate)
-    seriesApi.setException(series.id, { ...existing, originalDate: event.originalDate, cancelled: true })
-    close()
+    void save(() => source.setException(series.id, { ...existing, originalDate: event.originalDate!, cancelled: true }))
   }
 
   function resetOccurrence() {
-    if (event?.originalDate && series) seriesApi.clearException(series.id, event.originalDate)
-    close()
+    if (event?.originalDate && series) void save(() => source.clearException(series.id, event.originalDate!))
   }
 
   function handleDelete() {
-    if (scope === 'series' && series) seriesApi.remove(series.id)
-    else if (event) remove(event.id)
-    close()
+    if (scope === 'series' && series) void save(() => source.removeSeries(series.id))
+    else if (event) void save(() => source.removeEvent(event.id))
   }
 
   function bind(key: keyof EventFormValues) {
@@ -412,6 +422,11 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
               <textarea {...bind('description')} rows={3} maxLength={2000} value={values.description} onChange={(e) => set('description', e.target.value)} className={`${inputClass} py-2`} />
             </Field>
 
+            {saveError && (
+              <p role="alert" data-testid="save-error" className="rounded-xl border border-deadline/50 bg-deadline/10 px-3 py-2 text-sm">
+                Not saved. {saveError}
+              </p>
+            )}
             {pending ? (
               <div role="alertdialog" aria-label="Please review" className="space-y-3 rounded-xl border border-work/50 bg-work/10 p-3">
                 {pending.warnings.map((w) => (
@@ -428,7 +443,7 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
                   <button type="button" onClick={() => setPending(null)} className={`${secondaryBtn} flex-1`}>
                     Go back
                   </button>
-                  <button type="button" onClick={pending.commit} className={`${primaryBtn} flex-1`}>
+                  <button type="button" disabled={saving} onClick={pending.commit} className={`${primaryBtn} flex-1 disabled:opacity-60`}>
                     Save anyway
                   </button>
                 </div>
@@ -446,7 +461,7 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
                   <button type="button" onClick={() => setConfirmingDelete(false)} className={`${secondaryBtn} flex-1`}>
                     Keep it
                   </button>
-                  <button type="button" onClick={handleDelete} className="min-h-11 flex-1 rounded-xl bg-deadline px-4 text-sm font-medium text-base">
+                  <button type="button" disabled={saving} onClick={handleDelete} className="min-h-11 flex-1 rounded-xl bg-deadline px-4 text-sm font-medium text-base disabled:opacity-60">
                     Delete
                   </button>
                 </div>
@@ -460,11 +475,11 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
                 )}
                 {scope === 'occurrence' && (
                   <div className="mr-auto flex flex-wrap gap-1">
-                    <button type="button" onClick={cancelOccurrence} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm text-deadline hover:bg-deadline/10">
+                    <button type="button" disabled={saving} onClick={cancelOccurrence} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm text-deadline hover:bg-deadline/10">
                       <Ban size={16} aria-hidden /> Cancel occurrence
                     </button>
                     {event?.modified && (
-                      <button type="button" onClick={resetOccurrence} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm text-muted hover:bg-surface-2">
+                      <button type="button" disabled={saving} onClick={resetOccurrence} className="flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm text-muted hover:bg-surface-2">
                         <RotateCcw size={16} aria-hidden /> Reset to series
                       </button>
                     )}
@@ -473,7 +488,7 @@ export function EventDialog({ event, day, onClose }: EventDialogProps) {
                 <button type="button" onClick={close} className={`ml-auto ${secondaryBtn}`}>
                   Cancel
                 </button>
-                <button type="submit" className={primaryBtn}>
+                <button type="submit" disabled={saving} className={`${primaryBtn} disabled:opacity-60`}>
                   {scope === 'series' ? 'Save series' : scope === 'occurrence' ? 'Save occurrence' : event ? 'Save changes' : weekly ? 'Save series' : 'Save event'}
                 </button>
               </div>

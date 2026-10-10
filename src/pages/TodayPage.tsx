@@ -1,14 +1,14 @@
 import { BookOpen, Briefcase, CalendarPlus, GraduationCap, Upload } from 'lucide-react'
 import { useMemo } from 'react'
+import { CalendarDataGate } from '../components/CalendarDataGate'
 import { categoryStyle } from '../components/categories'
 import { EventItem } from '../components/EventItem'
 import { Timeline } from '../components/Timeline'
 import { ActionButton } from '../components/ui/ActionButton'
 import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
-import { useEvents } from '../hooks/useEvents'
+import { useCalendar } from '../calendar/CalendarContext'
 import { useNow } from '../hooks/useNow'
-import { useSeries } from '../hooks/useSeries'
 import type { EventCategory } from '../types'
 import { currentEvent, eventsOnDay, nextEvent, summarizeDay } from '../utils/events'
 import { expandItems } from '../utils/schedule'
@@ -25,8 +25,7 @@ const LOOKAHEAD_DAYS = 120
 
 export function TodayPage() {
   const now = useNow(1000)
-  const { events } = useEvents()
-  const { series } = useSeries()
+  const { events, series } = useCalendar()
   const editor = useEventEditor()
   const today = dateKey(now)
 
@@ -56,6 +55,7 @@ export function TodayPage() {
         </div>
       </div>
 
+      <CalendarDataGate>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {summaries.map(({ category, icon: Icon }) => {
           const { count, minutes } = summarizeDay(todays, today, category)
@@ -132,6 +132,7 @@ export function TodayPage() {
           </Card>
         </div>
       </div>
+      </CalendarDataGate>
     </div>
   )
 }

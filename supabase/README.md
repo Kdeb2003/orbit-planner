@@ -1,7 +1,7 @@
 # ORBIT database (Supabase / PostgreSQL)
 
 **Status: both migrations are deployed to the hosted ORBIT project (`npx supabase db push`).**
-Nothing in the app reads or writes these tables yet (that is Phase 3B).
+The app reads and writes these tables for signed-in users (Phase 3B). Hosted CRUD, series/exceptions, DST, optimistic concurrency, synthetic import and anonymous denial were verified with temporary synthetic rows (deleted); two-account isolation is not yet tested (see [docs/cloud-sync.md](../docs/cloud-sync.md)).
 
 **Verified live (Phase 3A):** the migrations are deployed to the hosted project (`npx supabase db push`). Against the real Supabase API: the signed-in session is accepted by the Auth server; authenticated `SELECT` on `events`, `recurring_series` and `series_exceptions` returns HTTP 200 with 0 rows; anonymous `SELECT` on all three returns HTTP 401 / PostgreSQL `42501` (permission denied). The dashboard's “0 of 3 tables exposed” indicator does not block the grants-based access above. **Not yet verified on the hosted project:** cross-user isolation and insert/update/delete through the API (Phase 3B integration testing). Cloud calendar sync is **not implemented**, and no local calendar data has been uploaded or migrated.
 
@@ -57,7 +57,7 @@ All helpers live in schema **`orbit_private`**, not `public`, so PostgREST does 
 
 Matching: categories, session types, override keys, title 1–120, location 120, notes 2000, course code 30, group label 40, weekday range, `endDayOffset` 0–6, ≤ 1100-day span, event `end >= start`, series same-day end > start, exception-must-have-effect (the frontend loader now also drops empty/no-op exceptions).
 
-Intentional differences (the sync layer in Phase 3B must handle them):
+Intentional differences (handled by the Phase 3B sync layer in `src/cloud/mappers.ts`, `src/cloud/ids.ts` and `src/migration/`; see [docs/cloud-sync.md](../docs/cloud-sync.md)):
 1. **Ids:** SQL needs UUIDs; the app only requires non-empty strings. Real ids come from `crypto.randomUUID()`; legacy/test ids like `e1` must be re-keyed on import.
 2. **Optional text:** the app omits empty optional fields; SQL also allows `''`. Map `undefined` ↔ `NULL` and trim.
 3. **Override lengths:** SQL caps override `title` at 120 and others like the base fields; the frontend loader only requires a non-empty title.

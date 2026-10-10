@@ -65,7 +65,7 @@ for (const vp of [
       await page.getByRole('button', { name: 'Sign in' }).click()
       await expect(appVisible(page)).toBeVisible()
       await expect(page).toHaveURL(/#\/$/)
-      await expect(page.getByTestId('local-data-notice')).toContainText('not backed up')
+      await expect(page.getByTestId('local-data-notice')).toContainText('stored in your account')
       expect((await authKeys(page)).length).toBe(1) // session is stored by supabase-js, under its own key
 
       // Session restoration after a refresh
@@ -99,7 +99,7 @@ for (const vp of [
       expect(log.requests.some((r) => r.url.pathname.endsWith('/logout'))).toBe(true)
     })
 
-    test('local events are still shown after signing in (and not claimed as backed up)', async ({ page, context }) => {
+    test('events saved in this browser are NOT shown as the account’s data, and stay untouched', async ({ page, context }) => {
       await seed(context, { raw: { [EVENTS_KEY]: RAW_EVENTS } })
       await mockSupabaseAuth(page)
       await page.goto('/')
@@ -107,8 +107,11 @@ for (const vp of [
       await expect(appVisible(page)).toBeVisible()
       await page.goto('/#/calendar')
       await page.locator('[data-date="2026-10-09"]').click()
-      await expect(page.getByRole('button', { name: /^QA Local Event/ })).toBeVisible()
+      await expect(page.getByRole('button', { name: /^QA Local Event/ })).toHaveCount(0)
       expect(await readStorage(page, EVENTS_KEY)).toBe(RAW_EVENTS)
+      // …but they are offered for an explicit, optional import
+      await page.goto('/#/settings')
+      await expect(page.getByTestId('local-import')).toContainText('1 event')
     })
 
     test('registration: asks to confirm email, redirects to the app base URL (not a hash route)', async ({ page, baseURL }) => {

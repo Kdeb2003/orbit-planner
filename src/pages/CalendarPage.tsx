@@ -1,12 +1,12 @@
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { categoryStyle } from '../components/categories'
+import { CalendarDataGate } from '../components/CalendarDataGate'
 import { EventItem } from '../components/EventItem'
 import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
-import { useEvents } from '../hooks/useEvents'
+import { useCalendar } from '../calendar/CalendarContext'
 import { useNow } from '../hooks/useNow'
-import { useSeries } from '../hooks/useSeries'
 import type { ScheduledItem } from '../types'
 import { eventsOnDay } from '../utils/events'
 import { expandItems } from '../utils/schedule'
@@ -32,8 +32,7 @@ const ghost =
 export function CalendarPage() {
   const now = useNow(60_000)
   const today = dateKey(now)
-  const { events } = useEvents()
-  const { series, setException, clearException } = useSeries()
+  const { events, series, source } = useCalendar()
   const editor = useEventEditor()
   const [selected, setSelected] = useState(() => dateKey(new Date()))
   const [view, setView] = useState<View>('month')
@@ -55,8 +54,8 @@ export function CalendarPage() {
     if (!item.seriesId || !item.originalDate) return
     const ex = series.find((s) => s.id === item.seriesId)?.exceptions.find((x) => x.originalDate === item.originalDate)
     if (ex?.override && Object.keys(ex.override).length) {
-      setException(item.seriesId, { originalDate: item.originalDate, override: ex.override })
-    } else clearException(item.seriesId, item.originalDate)
+      void source.setException(item.seriesId, { originalDate: item.originalDate, override: ex.override })
+    } else void source.clearException(item.seriesId, item.originalDate) // failures surface in the sync banner
   }
 
   const step = (dir: 1 | -1) => setSelected(view === 'month' ? addMonths(selected, dir) : addDays(selected, 7 * dir))
@@ -105,6 +104,7 @@ export function CalendarPage() {
         </div>
       </div>
 
+      <CalendarDataGate>
       {view === 'month' ? (
         <Card className="p-2 sm:p-4">
           <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted">
@@ -216,6 +216,7 @@ export function CalendarPage() {
           )}
         </Card>
       )}
+      </CalendarDataGate>
     </div>
   )
 }

@@ -1,7 +1,9 @@
 import { LogOut, Orbit } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { useCalendar } from '../calendar/CalendarContext'
 import { EventEditorProvider } from '../components/EventEditorProvider'
+import { SyncErrorBanner, SyncStatus } from '../components/SyncStatus'
 import { useNow } from '../hooks/useNow'
 import { useSaveError } from '../hooks/useSaveError'
 import { formatDate } from '../utils/time'
@@ -28,13 +30,14 @@ function SidebarAccount() {
   return <p className="mt-auto px-2 text-xs text-muted">{state.status === 'unconfigured' ? 'Local-only mode' : ''}</p>
 }
 
-/** Reminder that, until cloud sync exists, signing in does NOT back anything up. */
-function LocalDataNotice() {
+/** Where the calendar lives, stated plainly: cloud for signed-in users; local data is never called synced. */
+function StorageNotice() {
   const { state } = useAuth()
-  if (state.status !== 'signed-in') return null
+  const { mode } = useCalendar()
+  if (state.status !== 'signed-in' || mode !== 'cloud') return null
   return (
     <p data-testid="local-data-notice" className="border-b border-line bg-surface-2/50 px-4 py-1.5 text-xs text-muted md:px-8">
-      Signed in as <strong className="text-white">{state.user.email}</strong>. Your calendar is still stored only in this browser and is not backed up yet.
+      Signed in as <strong className="text-white">{state.user.email}</strong>. Your calendar is stored in your account. Events saved earlier in this browser are not included until you import them in Settings.
     </p>
   )
 }
@@ -79,12 +82,16 @@ export function AppLayout() {
               <span className="font-semibold tracking-wide">ORBIT</span>
             </div>
             <span className="hidden text-sm font-medium md:block">ORBIT Planner</span>
-            <time className="text-xs text-muted sm:text-sm" dateTime={now.toISOString()}>
+            <div className="flex items-center gap-3">
+              <SyncStatus />
+              <time className="text-xs text-muted sm:text-sm" dateTime={now.toISOString()}>
               {formatDate(now)}
             </time>
+            </div>
           </header>
 
-          <LocalDataNotice />
+          <StorageNotice />
+          <SyncErrorBanner />
           {saveError && (
             <div role="alert" className="border-b border-deadline/50 bg-deadline/15 px-4 py-2 text-sm md:px-8">
               <strong>Not saved.</strong> {saveError}

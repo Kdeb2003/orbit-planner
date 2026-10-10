@@ -17,7 +17,10 @@ src/
   components/   Reusable components; components/ui = small generic primitives
   pages/        One file per route (TodayPage, CalendarPage, ...)
   layouts/      App shell (sidebar, header, bottom nav) and nav config
-  hooks/        Custom hooks (useNow, useEvents, useSeries, useSaveError, useEventEditor)
+  hooks/        Custom hooks (useNow, useSaveError, useEventEditor)
+  calendar/     Data-source layer: CalendarSource (local | cloud), per-user session manager, auto-refresh, useCalendar()
+  cloud/        Supabase repository (cloudApi), model<->row mappers, validation, id mapping, error mapping, FakeCloud (tests)
+  migration/    Explicit local->cloud import: backup, preview plan, upload + verify, progress marker
   storage/      Persistence (collection.ts generic localStorage array; eventStore, seriesStore, saveStatus). No React.
   utils/        Pure helpers: time.ts (Berlin/DST, date keys), events.ts (filtering, form validation),
                 recurrence.ts (series -> occurrences), schedule.ts (events + series expansion, conflict lookup), conflicts.ts
@@ -53,9 +56,18 @@ src/
 - Unconfigured = local-only mode (app works, sign-in routes show setup help). Configured = every app route is behind `RequireAuth`.
 - Auth is PKCE (`?code=` callbacks) because HashRouter owns the URL fragment. Email redirect = `origin + BASE_URL`. Do not use implicit flow or hash redirects.
 - `src/auth/authController.ts` is the only code that talks to `supabase.auth`; UI uses `useAuth()`. It never reads/writes `orbit.*` storage keys, and ORBIT never stores passwords/tokens (supabase-js owns the session).
-- The SQL in `supabase/migrations/` is **deployed to the hosted project** (applied files are immutable: change the schema only with NEW migrations). It is exercised in `supabase/tests/migrations.test.ts` (PGlite simulation). Live checks so far: authenticated `SELECT` = 200/empty, anonymous = 401 `42501`. Cross-user isolation and writes on the hosted project are unverified until Phase 3B. Never run SQL against, or write to, the hosted project, or use a service-role key, without explicit approval. `supabase/.temp/` (CLI link metadata) is git-ignored; never commit it.
-- Calendar data is still local-only and NOT per-user. The UI must keep saying so until Phase 3B ships. Phase 3B: cloud CRUD behind the existing store interfaces, sync, per-user local namespacing, safe/idempotent import of local events (client UUIDs are preserved), conflict handling.
+- The SQL in `supabase/migrations/` is **deployed to the hosted project** (applied files are immutable: change the schema only with NEW migrations). It is exercised in `supabase/tests/migrations.test.ts` (PGlite simulation). Verified live: anonymous SELECT/INSERT denied; owner CRUD, series/exceptions, DST, stale-edit rejection and synthetic import with temporary rows (see docs/cloud-sync.md). NOT verified live: cross-user isolation (needs two accounts), session expiry, real outage, Realtime, automatic cross-tab refresh. Never run SQL against, or write to, the hosted project, or use a service-role key, without explicit approval. `supabase/.temp/` (CLI link metadata) is git-ignored; never commit it.
+- Signed-in calendar data comes from the user's cloud account (see the Cloud sync section). The legacy browser storage is NOT per-user: it is never displayed when signed in. Local mode (Supabase unconfigured) is unchanged and must stay labelled "Local only" — never call local data synced.
 - E2E: the `auth` Playwright project serves the app with a dummy config pointing at its own origin and mocks `/auth/v1/*`; the `local` project forces Supabase to unconfigured (empty env). Real credentials are never used in tests.
+
+## Cloud sync (Phase 3B) — see [docs/cloud-sync.md](docs/cloud-sync.md)
+- Views and the editor talk ONLY to `useCalendar()` (a `CalendarSource`); never to `eventStore`/`seriesStore`/Supabase directly. Local mode wraps the old stores; cloud mode is `createCloudSource(api)`, one per signed-in user, disposed on sign-out/account switch.
+- All mutations are async and pessimistic: `{ok:true}` = confirmed by the server; `{ok:false}` = NOT saved (the dialog stays open and shows why). No optimistic updates. Do not add any that cannot be rolled back and tested.
+- Known limits (do not claim them solved): exception last-writer-wins, non-atomic series update + exception cleanup, no offline write queue, Realtime off by default.
+- Events/series use optimistic concurrency on the raw `updated_at`; exceptions are last-writer-wins; series+exception removal is not transactional (documented). Changing that needs a new migration and user approval.
+- Cloud code must never touch `orbit.events.v1` / `orbit.series.v1` (enforced by a static test); legacy local data is only reachable through the explicit import (`src/migration`), which never modifies or deletes it. Never auto-upload or auto-merge.
+- Tests: `FakeCloud` (unit) and `e2e/cloudMock.ts` (mock PostgREST for Playwright) are MOCKS. Hosted behaviour (CRUD, series/exceptions, DST, stale-edit rejection, synthetic import, reload persistence, anonymous denial) was verified once against the real project with temporary synthetic rows that were deleted; see the verification status in docs/cloud-sync.md for what is still NOT tested (two-account isolation, session expiry, real outage, Realtime, automatic cross-tab refresh). Never use real credentials in tests, never write to the hosted project without explicit approval, never import real calendar data without the user's explicit confirmation.
+- Never send `user_id`/`updated_at` from the client; `created_at` only from the explicit import.
 
 ## Coding standards
 - TypeScript everywhere; no `any`.
@@ -85,7 +97,7 @@ src/
 2. Phase 2A (current): event model, localStorage persistence, working calendar and event CRUD
 2b. Phase 2B: recurring timetables and exceptions
 3a. (done) Supabase sign-in, schema + RLS migrations (unapplied)
-3b. Cloud CRUD + sync (laptop and phone), safe local import
+3b. (done, pending merge) Cloud CRUD + sync (laptop and phone), safe local import
 4. PWA install, offline support
 5. GitHub Pages deployment
 6. Later: schedule import
