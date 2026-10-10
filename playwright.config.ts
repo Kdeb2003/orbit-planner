@@ -9,6 +9,9 @@ import { defineConfig } from '@playwright/test'
 //  * "auth"  (port 5198): Supabase "configured" with a dummy key and a URL that points
 //    at the dev server itself. Auth API calls are intercepted by Playwright (see
 //    e2e/authMock.ts), so no real Supabase project, credentials or network are used.
+//  * "pages" (port 5201): the real production build (`vite build`, base
+//    '/orbit-planner/') served by `vite preview`, approximating GitHub Pages.
+//    Supabase is unconfigured (same as "local"); see e2e/pages-deploy.e2e.ts.
 export default defineConfig({
   testDir: './e2e',
   outputDir: './e2e-artifacts/results',
@@ -22,8 +25,9 @@ export default defineConfig({
     locale: 'en-GB',
   },
   projects: [
-    { name: 'local', testMatch: '**/*.e2e.ts', testIgnore: ['**/auth.e2e.ts', '**/cloud.e2e.ts'], use: { baseURL: 'http://localhost:5199' } },
+    { name: 'local', testMatch: '**/*.e2e.ts', testIgnore: ['**/auth.e2e.ts', '**/cloud.e2e.ts', '**/pages-deploy.e2e.ts'], use: { baseURL: 'http://localhost:5199' } },
     { name: 'auth', testMatch: ['**/auth.e2e.ts', '**/cloud.e2e.ts'], use: { baseURL: 'http://localhost:5198' } },
+    { name: 'pages', testMatch: '**/pages-deploy.e2e.ts', use: { baseURL: 'http://localhost:5201/orbit-planner/' } },
   ],
   webServer: [
     {
@@ -43,6 +47,17 @@ export default defineConfig({
         VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_e2e_dummy_key',
         VITE_ENABLE_SIGNUP: 'true',
       },
+    },
+    {
+      // Builds with the production base path and empty Supabase env (so this
+      // project is deterministic regardless of the developer's own
+      // .env.local — VITE_* values are inlined at build time, never read by
+      // `vite preview`), then serves dist/ exactly as GitHub Pages would.
+      command: 'npm run build && npm run preview -- --port 5201 --strictPort',
+      url: 'http://localhost:5201/orbit-planner/',
+      reuseExistingServer: false,
+      timeout: 120_000,
+      env: { VITE_SUPABASE_URL: '', VITE_SUPABASE_PUBLISHABLE_KEY: '', VITE_ENABLE_SIGNUP: '' },
     },
   ],
 })
