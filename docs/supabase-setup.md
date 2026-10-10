@@ -26,12 +26,12 @@ Restart `npm run dev` after editing. The app refuses to start sign-in if the URL
 
 ORBIT uses HashRouter (`/#/calendar`) and Supabase's **PKCE** flow. Email links come back to the **site root with a query string** (`/?code=…`), never to a hash route, so they cannot collide with the router. supabase-js exchanges the code and removes it from the address bar.
 
-* **Site URL:** `http://localhost:5173/` for development (switch to the GitHub Pages URL after deployment).
+* **Site URL:** `http://localhost:5173/` for development (switch to `https://kdeb2003.github.io/orbit-planner/` once deployed — see below).
 * **Redirect URLs (allow-list):**
   * `http://localhost:5173/**`
-  * `https://<user>.github.io/orbit-planner/**` (when deployed; the path must match Vite's `base`)
+  * `https://kdeb2003.github.io/orbit-planner/**` (add this once GitHub Pages is live; the path matches Vite's `base`)
 
-The app asks Supabase to redirect to `window.location.origin + import.meta.env.BASE_URL`. If you set Vite `base: '/orbit-planner/'` for GitHub Pages, that value is picked up automatically.
+The app asks Supabase to redirect to `window.location.origin + import.meta.env.BASE_URL`. `vite.config.ts` sets `base: '/orbit-planner/'` for both `vite build` and `vite preview` (GitHub Pages' project-page path), so that value is picked up automatically — no code change needed when deploying. Full deployment setup (CI workflow, required repository variables, verification): [deployment.md](deployment.md).
 
 Notes:
 * A confirmation/recovery link should be opened in the **same browser** that requested it (PKCE keeps a one-time verifier there). If a confirmation link is opened elsewhere, the email is still confirmed; just sign in normally.

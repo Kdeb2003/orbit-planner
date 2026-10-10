@@ -69,6 +69,13 @@ src/
 - Tests: `FakeCloud` (unit) and `e2e/cloudMock.ts` (mock PostgREST for Playwright) are MOCKS. Hosted behaviour (CRUD, series/exceptions, DST, stale-edit rejection, synthetic import, reload persistence, anonymous denial) was verified once against the real project with temporary synthetic rows that were deleted; see the verification status in docs/cloud-sync.md for what is still NOT tested (two-account isolation, session expiry, real outage, Realtime, automatic cross-tab refresh). Never use real credentials in tests, never write to the hosted project without explicit approval, never import real calendar data without the user's explicit confirmation.
 - Never send `user_id`/`updated_at` from the client; `created_at` only from the explicit import.
 
+## Deployment (Phase 3C) — see [docs/deployment.md](docs/deployment.md)
+- GitHub Pages serves ORBIT as a project page at `https://kdeb2003.github.io/orbit-planner/`. `vite.config.ts` sets `base: '/orbit-planner/'` for the production path and `/` for local dev. **`vite preview` resolves with `command: 'serve'`, the same as `vite dev`** — only Vite's `isPreview` flag (not `command`) tells them apart. Conditioning `base` on `command === 'build'` alone silently breaks `vite preview` (and the local approximation of a GitHub Pages deploy): every asset request falls through to the SPA/history-fallback middleware, which returns `index.html` with a 200 status for every path (including `.js`/`.css`), so a careless check that only looks at HTTP status codes will not catch it — compare response `Content-Type` or actual body.
+- `src/auth/authUrls.ts` builds Supabase auth-redirect URLs from `import.meta.env.BASE_URL`, so the Pages base path is picked up automatically; no auth code changes were needed for deployment.
+- `.github/workflows/deploy.yml` builds and deploys on push to `main` and on manual dispatch only (never on pull requests). It reads `VITE_SUPABASE_URL`/`VITE_SUPABASE_PUBLISHABLE_KEY` from repository **variables** (not secrets — the publishable key is meant to be public) and hardcodes `VITE_ENABLE_SIGNUP=false`. A missing Supabase configuration does not fail the build; it deploys ORBIT in local-only mode and logs a notice.
+- A dedicated Playwright project, `pages` (`e2e/pages-deploy.e2e.ts`, port 5201), builds with empty Supabase env and serves the result via `vite preview` to approximate the deployed site: no 404s for JS/CSS/favicon, HashRouter routes survive a hard refresh, the sign-in route renders, no horizontal overflow at 390px/320px. `page.goto()` calls in that spec must be relative (no leading slash) — a leading slash resolves against `baseURL` by replacing its path, silently dropping the `/orbit-planner/` prefix.
+- No deployment has been triggered and no Supabase dashboard settings have been changed as part of preparing this phase; see docs/deployment.md for the manual steps (repository variables, Supabase redirect URLs) still required before the first real deploy.
+
 ## Coding standards
 - TypeScript everywhere; no `any`.
 - Function components, named exports (default export only for `App`).
@@ -98,6 +105,6 @@ src/
 2b. Phase 2B: recurring timetables and exceptions
 3a. (done) Supabase sign-in, schema + RLS migrations (unapplied)
 3b. (done, pending merge) Cloud CRUD + sync (laptop and phone), safe local import
+3c. (current) GitHub Pages deployment prepared (production build, CI workflow, redirect-URL docs) — not yet deployed
 4. PWA install, offline support
-5. GitHub Pages deployment
-6. Later: schedule import
+5. Later: schedule import

@@ -1,0 +1,120 @@
+name: Deploy to GitHub Pages
+
+# Builds and deploys ORBIT to https://kdeb2003.github.io/orbit-planner/.
+# Runs on pushes to main and on manual dispatch only — never on pull requests,
+# so an external PR can't trigger a deployment or see repository variables.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least-privilege: this workflow only reads the repo and publishes to Pages
+# via the OIDC token Pages deployment needs. No write access to repo contents.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; queued runs wait rather than racing,
+# but an in-progress deployment is not cancelled mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Belt-and-braces: `push` is already scoped to `main` above, but
+    # `workflow_dispatch` can otherwise be run against any branch — this
+    # keeps a manual run from deploying a feature branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test -- --run
+
+      - name: Check Supabase configuration
+        # Fails closed: a production deployment with no Supabase project (or a
+        # placeholder copied straight from .env.example) is never intentional,
+        # so this blocks the deploy instead of silently shipping local-only
+        # mode. Values are never echoed — only presence/placeholder shape is
+        # checked — so nothing sensitive reaches the log.
+        run: |
+          missing=()
+          [ -z "${VITE_SUPABASE_URL}" ] && missing+=("VITE_SUPABASE_URL")
+          [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY}" ] && missing+=("VITE_SUPABASE_PUBLISHABLE_KEY")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Required repository variable(s) not set: ${missing[*]}. Add them under Settings > Secrets and variables > Actions > Variables (see docs/deployment.md)."
+            exit 1
+          fi
+          if [[ "${VITE_SUPABASE_URL}" == *"YOUR-PROJECT-REF"* ]] || [[ "${VITE_SUPABASE_PUBLISHABLE_KEY}" == *"YOUR_KEY_HERE"* ]]; then
+            echo "::error::VITE_SUPABASE_URL and/or VITE_SUPABASE_PUBLISHABLE_KEY still hold the .env.example placeholder value. Set the real project URL and publishable key as repository variables (see docs/deployment.md)."
+            exit 1
+          fi
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Build
+        run: npm run build
+        env:
+          # Repository *variables* (not secrets): the publishable key is
+          # designed to be public (Row Level Security is the real boundary).
+          # Never put a secret/service-role key or DB password here.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          # Closes the registration UI for the production build. This is
+          # cosmetic only — the real control is the Supabase dashboard's
+          # "Allow new users to sign up" setting (see docs/supabase-setup.md).
+          VITE_ENABLE_SIGNUP: 'false'
+
+      - name: Verify the production base path
+        # Guards against silent drift (e.g. someone editing vite.config.ts and
+        # removing the GitHub Pages base): fail the build clearly instead of
+        # deploying an app whose assets 404 under /orbit-planner/.
+        run: |
+          if [ ! -f dist/index.html ]; then
+            echo "::error::dist/index.html was not produced by the build."
+            exit 1
+          fi
+          if ! grep -q '/orbit-planner/assets/' dist/index.html; then
+            echo "::error::dist/index.html does not reference /orbit-planner/assets/ — check vite.config.ts's base path configuration."
+            exit 1
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
