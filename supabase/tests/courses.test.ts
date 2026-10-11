@@ -576,7 +576,7 @@ describe('rollback (supabase/recovery/20261020120000_courses.rollback.sql)', () 
 
   it('lives in supabase/recovery, never in migrations, and touches nothing outside the courses objects', () => {
     expect(readdirSync(migrationsDir).some((n) => /rollback/i.test(n))).toBe(false)
-    const body = ROLLBACK.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n')
+    const body = ROLLBACK.split(/\r?\n/).map((l) => l.replace(/--.*$/, '')).join('\n')
     const drops = [...body.matchAll(/drop\s+(table|function|policy|trigger|schema|index)\s+(if exists\s+)?([^\s;(]+)/gi)].map((m) => m[3])
     expect(drops).toEqual(['public.courses', 'orbit_private.orbit_protect_owned_row', 'orbit_private.orbit_normalise_key'])
     expect(body).not.toMatch(/cascade/i)

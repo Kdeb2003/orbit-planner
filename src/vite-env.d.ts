@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_ENABLE_REALTIME?: string
   /** "true" enables Confirm & Save for timetable imports. Only for an environment whose database has the provenance migration (local Docker stack). Off by default. */
   readonly VITE_ENABLE_TIMETABLE_SAVE?: string
+  /** "true" enables Courses (cloud-only). Only for an environment whose database has the courses migration (local Docker stack). Off by default; pinned 'false' in the production workflow. */
+  readonly VITE_ENABLE_PLANNER_COURSES?: string
 }
 
 interface ImportMeta {
