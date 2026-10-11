@@ -355,6 +355,60 @@ describe('optimistic concurrency', () => {
   })
 })
 
+describe('reviewed-version precondition', () => {
+  const writes = (c: FakePlanner) => c.calls.filter((x) => x.method !== 'loadCourses' && x.method !== 'getCourse')
+
+  /** v1 reviewed by the caller; another device then saves v2 and this source refreshes (the caller still holds v1). */
+  async function setup() {
+    const cloud = new FakePlanner()
+    const s = await open(cloud)
+    await s.createCourse(algebra, C1)
+    const v1 = s.getSnapshot().courses[0].updatedAt
+    cloud.touchCourse(ALICE, C1, { name: 'Phone edit' })
+    await s.refresh()
+    expect(s.getSnapshot().courses[0].name).toBe('Phone edit')
+    return { cloud, s, v1, v2: s.getSnapshot().courses[0].updatedAt }
+  }
+
+  it('an update based on an older version is rejected as stale WITHOUT any write request, and the newer data survives', async () => {
+    const { cloud, s, v1 } = await setup()
+    const before = writes(cloud).length
+    const r = await s.updateCourse(C1, { ...algebra, name: 'Laptop edit' }, v1)
+    expect(r).toMatchObject({ ok: false, kind: 'stale' })
+    expect(writes(cloud).length).toBe(before) // nothing was sent
+    expect(cloud.courses.get(ALICE)![0].name).toBe('Phone edit')
+  })
+
+  it('archive, restore and delete bound to an older version are rejected the same way', async () => {
+    const { cloud, s, v1 } = await setup()
+    const before = writes(cloud).length
+    expect(await s.archiveCourse(C1, v1)).toMatchObject({ ok: false, kind: 'stale' })
+    expect(await s.restoreCourse(C1, v1)).toMatchObject({ ok: false, kind: 'stale' })
+    expect(await s.deleteCourse(C1, v1)).toMatchObject({ ok: false, kind: 'stale' })
+    expect(writes(cloud).length).toBe(before)
+    expect(cloud.courses.get(ALICE)).toHaveLength(1)
+    expect(cloud.courses.get(ALICE)![0].archived_at).toBeNull()
+  })
+
+  it('with the version that was actually reviewed the operations go through, and the server check is still conditional', async () => {
+    const { cloud, s, v2 } = await setup()
+    cloud.touchCourse(ALICE, C1, { description: 'changed while the source still held v2' }) // not yet refreshed here
+    const r = await s.updateCourse(C1, { ...algebra, name: 'Mine' }, v2)
+    expect(r).toMatchObject({ ok: false, kind: 'stale' }) // the server's conditional update rejected it
+    expect(cloud.courses.get(ALICE)![0].name).toBe('Phone edit')
+    await settle()
+    const v3 = s.getSnapshot().courses[0].updatedAt
+    expect((await s.updateCourse(C1, { ...algebra, name: 'Mine' }, v3)).ok).toBe(true)
+    expect(cloud.courses.get(ALICE)![0].name).toBe('Mine')
+  })
+
+  it('callers that name no version keep the old behaviour (whatever the source holds now)', async () => {
+    const { cloud, s } = await setup()
+    expect((await s.updateCourse(C1, { ...algebra, name: 'No form' })).ok).toBe(true)
+    expect(cloud.courses.get(ALICE)![0].name).toBe('No form')
+  })
+})
+
 describe('failures never report success', () => {
   it('offline: not saved, nothing changes, the offline flag is set', async () => {
     const cloud = new FakePlanner()

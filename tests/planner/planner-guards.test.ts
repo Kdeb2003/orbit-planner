@@ -74,10 +74,18 @@ describe('feature flag VITE_ENABLE_PLANNER_COURSES', () => {
     expect(readFileSync(resolve('src/vite-env.d.ts'), 'utf8')).toContain(`readonly ${FLAG}?: string`)
   })
 
-  it('the Playwright and Vite configs do not switch it on', () => {
-    for (const f of ['playwright.config.ts', 'vite.config.ts']) {
-      if (existsSync(resolve(f))) expect(readFileSync(resolve(f), 'utf8'), f).not.toContain(FLAG)
-    }
+  it('Vite config never sets it; Playwright turns it on only for the dedicated "courses" server and pins it off for "auth"', () => {
+    expect(readFileSync(resolve('vite.config.ts'), 'utf8')).not.toContain(FLAG)
+    const pw = readFileSync(resolve('playwright.config.ts'), 'utf8')
+    const servers = pw.slice(pw.indexOf('webServer:')).split(/\r?\n {4}\{\r?\n/).slice(1)
+    const withFlag = servers.filter((b) => b.includes(FLAG))
+    expect(withFlag).toHaveLength(2)
+    const on = withFlag.filter((b) => new RegExp(`${FLAG}: 'true'`).test(b))
+    expect(on).toHaveLength(1)
+    expect(on[0]).toContain('--port 5197')
+    expect(withFlag.find((b) => b.includes('--port 5198'))).toMatch(new RegExp(`${FLAG}: ''`))
+    // the local-mode and production-build servers never enable it
+    for (const port of ['5199', '5201']) expect(servers.find((b) => b.includes(`--port ${port}`) || b.includes(`${port}`))).not.toMatch(new RegExp(`${FLAG}: 'true'`))
   })
 })
 
@@ -127,17 +135,68 @@ describe('planner code is cloud-only and isolated', () => {
     }
   })
 
-  it('the planner modules are reachable only from the session wiring (no page, route or navigation uses them yet)', () => {
+  it('the planner modules are reachable only from the session wiring, the feature-gated routes/navigation and the Courses UI', () => {
     const importers = walk(resolve('src'))
       .filter((f) => !isTest(f) && !/src[\\/](planner|cloud)[\\/]/.test(f))
       .filter((f) => /planner\/|plannerApi|plannerSource|usePlanner|PlannerContext/.test(code(f)))
       .map(rel)
       .sort()
-    expect(importers).toEqual(['src/calendar/CalendarProvider.tsx', 'src/calendar/calendarManager.ts'])
-    // no Courses route and no navigation entry yet (the page is Checkpoint 2B)
-    for (const f of ['src/App.tsx', 'src/layouts/navItems.ts', 'src/layouts/AppLayout.tsx']) {
-      expect(code(resolve(f)), f).not.toMatch(/path=["']courses|to:\s*['"]\/courses|['"]\/courses|label:\s*['"]Courses/i)
+    const allowed = ['src/App.tsx', 'src/calendar/CalendarProvider.tsx', 'src/calendar/calendarManager.ts', 'src/layouts/AppLayout.tsx', 'src/pages/CoursesPage.tsx']
+    expect(importers.filter((f) => !allowed.includes(f) && !f.startsWith('src/components/planner/'))).toEqual([])
+    for (const f of allowed) expect(importers).toContain(f)
+  })
+})
+
+describe('the Courses UI is flag-gated (Checkpoint 2B.1)', () => {
+  const app = code(resolve('src/App.tsx'))
+
+  it('the Courses page is only ever loaded through a dynamic import, never statically', () => {
+    expect(app).toMatch(/lazy\(\(\) => import\('\.\/pages\/CoursesPage'\)/)
+    for (const f of walk(resolve('src')).filter((f) => !isTest(f))) {
+      expect(code(f), rel(f)).not.toMatch(/^\s*import[^'"]*from\s+['"][^'"]*pages\/CoursesPage['"]/m)
     }
-    expect(existsSync(resolve('src/pages/CoursesPage.tsx'))).toBe(false)
+  })
+
+  it('both Courses routes are registered only when the feature is on', () => {
+    expect(app).toMatch(/const plannerOn = isPlannerFeatureOn\(createPlannerApi\)/)
+    expect(app).toMatch(/\{plannerOn && <Route path="plan" /)
+    expect(app).toMatch(/\{plannerOn && \(\s*<Route\s+path="plan\/courses"/)
+    expect(app.match(/path="plan/g)).toHaveLength(2) // nothing else exposes the section
+  })
+
+  it('without the feature the navigation is exactly the five existing entries (no Plan)', async () => {
+    const { getNavItems, navItems } = await import('../../src/layouts/navItems')
+    expect(getNavItems(false)).toBe(navItems)
+    expect(navItems.map((i) => i.label)).toEqual(['Today', 'Calendar', 'Study Planner', 'Insights', 'Settings'])
+    expect(navItems.some((i) => /plan\b|courses|tasks|exams/i.test(i.to))).toBe(false)
+  })
+
+  it('with the feature the bar still has five slots; one Plan entry replaces the Study Planner slot; no Tasks/Exams entry', async () => {
+    const { getNavItems } = await import('../../src/layouts/navItems')
+    const on = getNavItems(true)
+    expect(on).toHaveLength(5)
+    expect(on.map((i) => i.label)).toEqual(['Today', 'Calendar', 'Plan', 'Insights', 'Settings'])
+    expect(on.find((i) => i.label === 'Plan')).toMatchObject({ to: '/plan', alsoActiveFor: ['/study'] })
+    expect(on.some((i) => /tasks|exams/i.test(i.label + i.to))).toBe(false)
+  })
+
+  it('the Study Planner route and its Demo data label are untouched', () => {
+    expect(app).toMatch(/<Route path="study" element=\{<StudyPlannerPage \/>\} \/>/)
+    expect(code(resolve('src/pages/StudyPlannerPage.tsx'))).toContain('<Badge>Demo data</Badge>')
+  })
+
+  it('the Courses UI uses theme tokens only (no hex colours), no storage, no calendar writes and no direct Supabase access', () => {
+    const files = [...walk(resolve('src/components/planner')), resolve('src/pages/CoursesPage.tsx')].filter((f) => !isTest(f))
+    expect(files.length).toBeGreaterThanOrEqual(6)
+    for (const f of files) {
+      const c = code(f)
+      expect(c, rel(f)).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/)
+      expect(c, rel(f)).not.toMatch(/localStorage|sessionStorage|indexedDB|eventStore|seriesStore|useCalendar|createEvent|updateEvent|removeEvent|createSeries|@supabase|lib\/supabase|\bfetch\s*\(|console\.\w+/)
+    }
+  })
+
+  it('the course colour tokens exist in the theme', () => {
+    const css = readFileSync(resolve('src/styles/index.css'), 'utf8')
+    for (let n = 1; n <= 8; n++) expect(css).toMatch(new RegExp(`--color-c${n}:\\s*#[0-9a-f]{6};`, 'i'))
   })
 })

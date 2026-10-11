@@ -9,13 +9,13 @@ import type { Route } from '@playwright/test'
  * ON CONFLICT handling, uuid validation, cascade delete, and a few CHECK constraints.
  */
 type Row = Record<string, unknown>
-const TABLES = ['events', 'recurring_series', 'series_exceptions'] as const
+const TABLES = ['events', 'recurring_series', 'series_exceptions', 'courses'] as const
 type Table = (typeof TABLES)[number]
 const RESERVED = new Set(['select', 'order', 'limit', 'offset', 'on_conflict', 'columns'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export class MockCloudDb {
-  tables: Record<Table, Row[]> = { events: [], recurring_series: [], series_exceptions: [] }
+  tables: Record<Table, Row[]> = { events: [], recurring_series: [], series_exceptions: [], courses: [] }
   /** Every REST request seen: "METHOD table user". */
   log: string[] = []
   offline = false
@@ -23,6 +23,8 @@ export class MockCloudDb {
   failWrites: { status: number; code: string; message: string; tables?: string[] } | null = null
   /** Delay (ms) applied to every response, to observe "saving" states. */
   delayMs = 0
+  /** Courses table is only served when enabled; otherwise it answers like a database that lacks it (PGRST205). */
+  coursesInstalled = true
   private clock = 0
 
   private stamp() {
@@ -54,6 +56,15 @@ export class MockCloudDb {
     }
   }
 
+  /** Unique index (user_id, code_key, institution_key, term_key) with rule N approximated by trim + collapse + ASCII upper-casing. */
+  private duplicateCourse(user: string, row: Row): boolean {
+    const key = (v: unknown) => String(v ?? '').replace(/[ \t\r\n\f\v\u00a0]+/g, ' ').trim().replace(/[a-z]/g, (c) => c.toUpperCase())
+    if (row.code === null || row.code === undefined) return false
+    return this.tables.courses.some(
+      (r) => r.user_id === user && r.id !== row.id && r.code != null && key(r.code) === key(row.code) && key(r.institution) === key(row.institution) && key(r.term_label) === key(row.term_label),
+    )
+  }
+
   async handle(route: Route): Promise<void> {
     const req = route.request()
     const url = new URL(req.url())
@@ -67,7 +78,7 @@ export class MockCloudDb {
 
     const user = MockCloudDb.userOf(req.headers()['authorization'])
     this.log.push(`${method} ${table} ${user ?? 'anon'}`)
-    if (!TABLES.includes(table)) return reply(404, { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` })
+    if (!TABLES.includes(table) || (table === 'courses' && !this.coursesInstalled)) return reply(404, { code: 'PGRST205', message: `Could not find the table 'public.${table}' in the schema cache` })
     if (!user) return reply(401, { code: '42501', message: `permission denied for table ${table}` }) // anon has no privileges
     const isWrite = method !== 'GET' && method !== 'HEAD'
     if (isWrite && this.failWrites && (!this.failWrites.tables || this.failWrites.tables.includes(table))) return reply(this.failWrites.status, { code: this.failWrites.code, message: this.failWrites.message })
@@ -109,7 +120,10 @@ export class MockCloudDb {
           row.user_id = user // DEFAULT auth.uid(); RLS WITH CHECK rejects other owners
           if (raw.user_id && raw.user_id !== user) return reply(403, { code: '42501', message: 'new row violates row-level security policy' })
           if (typeof row.id !== 'string' || !UUID.test(row.id)) return reply(400, { code: '22P02', message: `invalid input syntax for type uuid: "${String(row.id)}"` })
-          if (typeof row.title !== 'string' || row.title.trim().length < 1 || row.title.length > 120) return reply(400, { code: '23514', message: 'violates check constraint (title)' })
+          if (table === 'courses') {
+            if (typeof row.name !== 'string' || row.name.trim().length < 1 || row.name.length > 120) return reply(400, { code: '23514', message: 'violates check constraint (name)' })
+            if (this.duplicateCourse(user, row)) return reply(409, { code: '23505', message: 'duplicate key value violates unique constraint "courses_user_code_institution_term_key"', details: 'Key (user_id, code_key, institution_key, term_key) already exists.' })
+          } else if (typeof row.title !== 'string' || row.title.trim().length < 1 || row.title.length > 120) return reply(400, { code: '23514', message: 'violates check constraint (title)' })
         } else {
           if (typeof row.series_id !== 'string' || !UUID.test(row.series_id)) return reply(400, { code: '22P02', message: 'invalid input syntax for type uuid' })
           const owned = this.tables.recurring_series.some((s) => s.id === row.series_id && s.user_id === user)
@@ -126,7 +140,9 @@ export class MockCloudDb {
           }
           return reply(409, { code: '23505', message: 'duplicate key value violates unique constraint' })
         }
-        const full: Row = { ...row, created_at: row.created_at ?? this.stamp(), updated_at: this.stamp() }
+        // column defaults of the real table (PostgREST returns every selected column, NULL included)
+        const defaults: Row = table === 'courses' ? { code: null, institution: null, term_label: null, term_start: null, term_end: null, description: null, color: 'c1', archived_at: null } : {}
+        const full: Row = { ...defaults, ...row, created_at: row.created_at ?? this.stamp(), updated_at: this.stamp() }
         this.tables[table].push(full)
         out.push(full)
       }
@@ -136,6 +152,9 @@ export class MockCloudDb {
     if (method === 'PATCH') {
       const patch = req.postDataJSON() as Row
       const rows = this.visible(table, user).filter(matches)
+      if (table === 'courses') {
+        for (const r of rows) if (this.duplicateCourse(user, { ...r, ...patch })) return reply(409, { code: '23505', message: 'duplicate key value violates unique constraint "courses_user_code_institution_term_key"' })
+      }
       for (const r of rows) Object.assign(r, patch, { updated_at: this.stamp() }) // trigger: server sets updated_at, ignores id/user_id changes
       return wantsRows ? reply(200, rows) : reply(204, undefined)
     }

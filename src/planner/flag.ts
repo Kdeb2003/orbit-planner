@@ -6,3 +6,9 @@
  * access control.
  */
 export const PLANNER_COURSES_ENABLED: boolean = import.meta.env.VITE_ENABLE_PLANNER_COURSES === 'true'
+
+/**
+ * Is the Courses feature on for this app instance? A provider that is handed a planner API (tests) counts as on;
+ * otherwise only the build flag decides. Used by the routes, the navigation and the provider so they always agree.
+ */
+export const isPlannerFeatureOn = (injected: unknown): boolean => injected !== undefined || PLANNER_COURSES_ENABLED

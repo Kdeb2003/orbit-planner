@@ -8,7 +8,7 @@ import type { ImportApi } from '../cloud/importApi'
 import { lazyPlannerApiFactory } from '../cloud/plannerApiLoader'
 import type { PlannerApi } from '../cloud/plannerApi'
 import { supabase } from '../lib/supabase'
-import { PLANNER_COURSES_ENABLED } from '../planner/flag'
+import { isPlannerFeatureOn, PLANNER_COURSES_ENABLED } from '../planner/flag'
 import { PlannerContext } from '../planner/PlannerContext'
 import { createCalendarManager } from './calendarManager'
 import { CalendarContext } from './CalendarContext'
@@ -50,7 +50,7 @@ export function CalendarProvider({ children, createApi, createImportApi, createP
       startRealtime: realtime && supabase ? (id, onChange) => subscribeRealtime(supabase!, id, onChange) : undefined,
     }),
   )
-  const plannerEnabled = createPlannerApi !== undefined || PLANNER_COURSES_ENABLED
+  const plannerEnabled = isPlannerFeatureOn(createPlannerApi)
   useEffect(() => {
     manager.setUser(userId)
     return () => manager.setUser(null)
@@ -69,7 +69,7 @@ export function CalendarProvider({ children, createApi, createImportApi, createP
 
   // Same guard as above: never expose the planner session of a different (previous) user; no planner in local mode.
   const planner = !unconfigured && session && userId && session.userId === userId ? session.planner : null
-  const plannerValue = useMemo(() => ({ enabled: plannerEnabled && !unconfigured, source: planner }), [plannerEnabled, unconfigured, planner])
+  const plannerValue = useMemo(() => ({ enabled: plannerEnabled, source: planner }), [plannerEnabled, planner])
 
   return (
     <CalendarContext.Provider value={value}>

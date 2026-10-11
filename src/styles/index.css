@@ -1,13 +1,13 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-base: #0b1020;
-  --color-surface: #121936;
-  --color-surface-2: #1a2347;
-  --color-line: #2a3358;
-  --color-muted: #9aa4c7;
-  --color-accent: #8b5cf6;
-  --color-accent-soft: #a78bfa;
+  --color-base: #080E19;
+  --color-surface: #121B2B;
+  --color-surface-2: #1A2639;
+  --color-line: #29374D;
+  --color-muted: #A1AFC7;
+  --color-accent: #5367AC;
+  --color-accent-soft: #B4C2F0;
   --color-university: #60a5fa;
   --color-work: #fbbf24;
   --color-study: #a78bfa;
@@ -15,6 +15,15 @@
   --color-research: #22d3ee;
   --color-personal: #34d399;
   --color-deadline: #f87171;
+  /* Course colours (Phase 4B): the eight tokens c1..c8 stored on courses. Used for stripes and dots, never as the only signal. */
+  --color-c1: #a78bfa;
+  --color-c2: #60a5fa;
+  --color-c3: #22d3ee;
+  --color-c4: #34d399;
+  --color-c5: #fbbf24;
+  --color-c6: #fb923c;
+  --color-c7: #f472b6;
+  --color-c8: #f87171;
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
