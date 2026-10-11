@@ -1,7 +1,7 @@
 import type { EventCategory, EventInput, SessionType } from '../../types/index.ts'
 import { zonedTimeToUtc } from '../../utils/time.ts'
 import type { SelectedSession } from './selection.ts'
-import type { SessionKind } from './types.ts'
+import type { SessionKind, TimetableSession } from './types.ts'
 
 /**
  * A reviewable DRAFT of a one-off calendar event for an extracted session.
@@ -20,7 +20,7 @@ export interface EventDraft {
   event: EventInput
 }
 
-const SESSION_TYPE: Record<SessionKind, SessionType> = {
+export const SESSION_TYPE: Record<SessionKind, SessionType> = {
   main: 'main',
   tutorial: 'tutorial',
   project: 'other',
@@ -29,13 +29,18 @@ const SESSION_TYPE: Record<SessionKind, SessionType> = {
   other: 'other',
 }
 
+/** The provenance line written into an imported event's description. */
+export function sourceDescription(session: Pick<TimetableSession, 'semesterWeek' | 'source'>): string {
+  const pages = [...new Set(session.source.map((s) => s.page))].join(', ')
+  return `UTN timetable WiSe 2026/27 (preliminary), semester week ${session.semesterWeek}, PDF page ${pages}.`
+}
+
 export function toEventDraft(item: SelectedSession): EventDraft {
   const { session, course } = item
   if (session.date === null) throw new Error(`Session ${session.sourceKey} has no date and cannot be mapped.`)
   const category: EventCategory = course.category
   const suffix = session.kind === 'tutorial' ? ' — Tutorial' : ''
   const location = session.location ? (session.location.kind === 'online' ? 'Online' : session.location.raw) : undefined
-  const pages = [...new Set(session.source.map((s) => s.page))].join(', ')
   const event: EventInput = {
     title: `${course.displayName}${suffix}`,
     category,
@@ -46,7 +51,7 @@ export function toEventDraft(item: SelectedSession): EventDraft {
     sessionType: SESSION_TYPE[session.kind],
     ...(session.groups.length ? { groupLabel: `Group ${session.groups.join(', ')}` } : {}),
     ...(location ? { location } : {}),
-    description: `UTN timetable WiSe 2026/27 (preliminary), semester week ${session.semesterWeek}, PDF page ${pages}.`,
+    description: sourceDescription(session),
   }
   return { importKey: session.sourceKey, event }
 }

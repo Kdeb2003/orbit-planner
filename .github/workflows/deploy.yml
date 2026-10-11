@@ -81,6 +81,9 @@ jobs:
           # cosmetic only — the real control is the Supabase dashboard's
           # "Allow new users to sign up" setting (see docs/supabase-setup.md).
           VITE_ENABLE_SIGNUP: 'false'
+          # Confirm & Save (timetable import) stays OFF in production until the provenance migration is applied to the
+          # hosted project, verified there, and this value is changed deliberately in a reviewed PR.
+          VITE_ENABLE_TIMETABLE_SAVE: 'false'
 
       - name: Verify the production base path
         # Guards against silent drift (e.g. someone editing vite.config.ts and

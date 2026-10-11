@@ -13,6 +13,9 @@ The Supabase CLI writes link metadata (project ref, pooler host) to `supabase/.t
 |---|---|
 | `migrations/20261009120000_core_schema.sql` | Private helper schema, tables (RLS **enabled and client privileges revoked immediately**), constraints, indexes, triggers |
 | `migrations/20261009120100_rls_policies.sql` | Grants the minimum privileges to `authenticated` and installs all ownership policies |
+| `migrations/20261015120000_event_imports.sql` | Import provenance (Phase 4A.3): `event_imports`, `event_import_links`, `orbit_import_sessions`, `orbit_forget_import_history`. **Tracked and validated locally (PostgreSQL 17.11); NOT yet applied to the hosted project.** |
+| `recovery/` | Manual recovery scripts (the provenance rollback). Never read by `db push`/`db reset` or the migration tests. |
+| `tests/import-provenance.test.ts` | PGlite tests of the provenance migration (isolation, ownership FKs, RPC, rollback). |
 | `tests/migrations.test.ts` | Runs the real SQL in an in-memory PostgreSQL (PGlite): constraints, cross-user isolation, the state after migration 1 only, function exposure. Part of `npm test`. |
 
 ## Deployment safety (fail closed)
