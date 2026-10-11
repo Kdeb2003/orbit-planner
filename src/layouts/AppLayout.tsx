@@ -1,13 +1,31 @@
 import { LogOut, Orbit } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useCalendar } from '../calendar/CalendarContext'
 import { EventEditorProvider } from '../components/EventEditorProvider'
 import { SyncErrorBanner, SyncStatus } from '../components/SyncStatus'
 import { useNow } from '../hooks/useNow'
+import { usePlanner } from '../planner/PlannerContext'
 import { useSaveError } from '../hooks/useSaveError'
 import { formatDate } from '../utils/time'
-import { navItems } from './navItems'
+import { getNavItems } from './navItems'
+import type { NavItem } from './navItems'
+
+/**
+ * One navigation link. Like NavLink (exact match for Today, prefix match otherwise) but an entry may also stay active
+ * on other paths (Plan on the Study Planner), and the active state is always exposed as aria-current.
+ */
+function NavEntry({ item, classes, children }: { item: NavItem; classes: (active: boolean) => string; children: ReactNode }) {
+  const { pathname } = useLocation()
+  const on = (p: string) => (p === '/' ? pathname === '/' : pathname === p || pathname.startsWith(`${p}/`))
+  const active = on(item.to) || (item.alsoActiveFor?.some(on) ?? false)
+  return (
+    <Link to={item.to} aria-current={active ? 'page' : undefined} className={classes(active)}>
+      {children}
+    </Link>
+  )
+}
 
 function SidebarAccount() {
   const { state, controller } = useAuth()
@@ -45,6 +63,9 @@ function StorageNotice() {
 export function AppLayout() {
   const now = useNow(60_000)
   const saveError = useSaveError()
+  // Courses are cloud-only: the Plan entry needs the feature AND a signed-in cloud account (never in local-only mode).
+  const { state: authState } = useAuth()
+  const items = getNavItems(usePlanner().enabled && authState.status === 'signed-in')
 
   return (
     <EventEditorProvider>
@@ -56,20 +77,19 @@ export function AppLayout() {
             <span className="text-lg font-semibold tracking-wide">ORBIT</span>
           </div>
           <nav aria-label="Main" className="flex flex-col gap-1">
-            {navItems.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={to === '/'}
-                className={({ isActive }) =>
+            {items.map((it) => (
+              <NavEntry
+                key={it.to}
+                item={it}
+                classes={(active) =>
                   `flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm transition-colors ${
-                    isActive ? 'bg-accent/20 text-white' : 'text-muted hover:bg-surface-2 hover:text-white'
+                    active ? 'bg-accent/20 text-white' : 'text-muted hover:bg-surface-2 hover:text-white'
                   }`
                 }
               >
-                <Icon size={18} aria-hidden />
-                {label}
-              </NavLink>
+                <it.icon size={18} aria-hidden />
+                {it.label}
+              </NavEntry>
             ))}
           </nav>
           <SidebarAccount />
@@ -107,20 +127,15 @@ export function AppLayout() {
           aria-label="Main"
           className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
         >
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] ${
-                  isActive ? 'text-accent-soft' : 'text-muted'
-                }`
-              }
+          {items.map((it) => (
+            <NavEntry
+              key={it.to}
+              item={it}
+              classes={(active) => `flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] ${active ? 'text-accent-soft' : 'text-muted'}`}
             >
-              <Icon size={20} aria-hidden />
-              <span className="max-w-full truncate px-1">{label.replace(' Planner', '')}</span>
-            </NavLink>
+              <it.icon size={20} aria-hidden />
+              <span className="max-w-full truncate px-1">{it.label.replace(' Planner', '')}</span>
+            </NavEntry>
           ))}
         </nav>
       </div>

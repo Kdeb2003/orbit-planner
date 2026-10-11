@@ -2,7 +2,10 @@ import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { PlannerSnapshot, PlannerSource } from './plannerSource'
 
 export interface PlannerContextValue {
-  /** The feature is switched on for this build. When false, `source` is always null and no planner request exists. */
+  /**
+   * The feature is switched on for this build (regardless of sign-in or local mode). When false, `source` is always
+   * null and no planner request exists. When true but `source` is null: still loading, signed out, or local-only mode.
+   */
   enabled: boolean
   /** The signed-in user's planner session; null while signed out, loading the session, or when disabled. */
   source: PlannerSource | null

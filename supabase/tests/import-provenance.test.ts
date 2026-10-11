@@ -802,7 +802,7 @@ describe('rollback', () => {
     await d1.close()
     await d2.close()
     await d3.close()
-  })
+  }, 30_000) // three fresh PGlite databases with every migration applied: ~6 s on a busy machine, over the 5 s default
 
   it('refuses to run as a role that cannot see all rows (under RLS an empty-looking table proves nothing)', async () => {
     const d = await newDb()

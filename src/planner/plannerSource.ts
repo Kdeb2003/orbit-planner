@@ -18,6 +18,8 @@ export interface PlannerSnapshot {
   lastSyncedAt: number | null
   /** Server rows that failed local validation and were not shown. */
   skippedInvalid: number
+  /** The server has no courses table (migration not applied): a different situation from being offline. */
+  unavailable: boolean
 }
 
 /** `duplicate` = same normalised code, institution and term already exists; `stale` = changed elsewhere (nothing written). */
@@ -37,10 +39,17 @@ export interface PlannerSource {
   /** `id` lets the caller keep one stable id across retries, making a retried create idempotent. */
   createCourse(input: CourseInput, id?: string): Promise<PlannerResult<Course>>
   /** General edit. Never changes the archive state. */
-  updateCourse(id: string, input: CourseInput): Promise<PlannerResult<Course>>
-  archiveCourse(id: string): Promise<PlannerResult<Course>>
-  restoreCourse(id: string): Promise<PlannerResult<Course>>
-  deleteCourse(id: string): Promise<PlannerResult>
+  /**
+   * Every change to an existing course takes an optional `expectedUpdatedAt`: the version the caller actually showed
+   * the user. When the queued write runs and this source already holds a different version (an automatic refresh
+   * replaced it meanwhile), the write is rejected as `stale` WITHOUT a request, so an older form or confirmation can
+   * never overwrite newer data. Omitted = "whatever this source holds now" (callers that show no form).
+   * The server's conditional `updated_at` check stays in force either way.
+   */
+  updateCourse(id: string, input: CourseInput, expectedUpdatedAt?: string): Promise<PlannerResult<Course>>
+  archiveCourse(id: string, expectedUpdatedAt?: string): Promise<PlannerResult<Course>>
+  restoreCourse(id: string, expectedUpdatedAt?: string): Promise<PlannerResult<Course>>
+  deleteCourse(id: string, expectedUpdatedAt?: string): Promise<PlannerResult>
 
   /** Re-read from the server. Cheap to call repeatedly (de-duplicated). Never rejects. */
   refresh(): Promise<void>
@@ -104,6 +113,7 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
     pendingWrites: 0,
     lastSyncedAt: null,
     skippedInvalid: 0,
+    unavailable: false,
   }
 
   function set(patch: Partial<PlannerSnapshot>) {
@@ -141,7 +151,7 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
         return
       }
       const { courses, skipped } = build(rows)
-      set({ status: 'ready', courses, skippedInvalid: skipped, error: null, offline: false, lastSyncedAt: now() })
+      set({ status: 'ready', courses, skippedInvalid: skipped, error: null, offline: false, unavailable: false, lastSyncedAt: now() })
     } catch (err) {
       if (disposed || seq !== loadSeq) return
       const e = mapCloudError(err)
@@ -150,6 +160,7 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
         status: snap.lastSyncedAt === null ? 'error' : 'ready', // keep showing the last good data
         error: offline ? 'Offline or unreachable. Showing the last synced data.' : e.message,
         offline,
+        unavailable: e.code === 'planner_unavailable',
       })
     }
   }
@@ -247,6 +258,12 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
   })
 
   const find = (id: string) => snap.courses.find((c) => c.id === id)
+  /** The course as held NOW, which must still be the version the caller reviewed (if it named one). */
+  function reviewed(id: string, expected: string | undefined): Course {
+    const current = find(id)
+    if (!current || (expected !== undefined && current.updatedAt !== expected)) throw stale()
+    return current
+  }
 
   /** Replace-or-add one server-confirmed course. */
   function put(row: CourseRow): Confirmed<Course> {
@@ -280,22 +297,20 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
       })
     },
 
-    updateCourse(id, input) {
+    updateCourse(id, input, expectedUpdatedAt) {
       const problems = courseProblems(input)
       if (problems.length) return Promise.resolve(invalid(problems))
       return write(async () => {
-        const current = find(id)
-        if (!current) throw stale()
+        const current = reviewed(id, expectedUpdatedAt)
         const row = await api.updateCourse(id, coursePatch(input), current.updatedAt)
         if (!row) throw stale()
         return put(row)
       })
     },
 
-    archiveCourse(id) {
+    archiveCourse(id, expectedUpdatedAt) {
       return write(async () => {
-        const current = find(id)
-        if (!current) throw stale()
+        const current = reviewed(id, expectedUpdatedAt)
         // Archiving an already archived course keeps the original archive time.
         const row = await api.archiveCourse(id, current.archivedAt ?? new Date(now()).toISOString(), current.updatedAt)
         if (!row) throw stale()
@@ -303,20 +318,18 @@ export function createPlannerSource(api: PlannerApi, options: PlannerSourceOptio
       })
     },
 
-    restoreCourse(id) {
+    restoreCourse(id, expectedUpdatedAt) {
       return write(async () => {
-        const current = find(id)
-        if (!current) throw stale()
+        const current = reviewed(id, expectedUpdatedAt)
         const row = await api.restoreCourse(id, current.updatedAt)
         if (!row) throw stale()
         return put(row)
       })
     },
 
-    deleteCourse(id) {
+    deleteCourse(id, expectedUpdatedAt) {
       return write(async () => {
-        const current = find(id)
-        if (!current) throw stale()
+        const current = reviewed(id, expectedUpdatedAt)
         if (!(await api.deleteCourse(id, current.updatedAt))) throw stale()
         return { value: undefined, apply: (cur) => cur.filter((c) => c.id !== id) }
       })
