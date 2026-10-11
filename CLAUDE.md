@@ -118,6 +118,10 @@ src/
 - **Calendar/Today:** `planner/useCourseAnnotator.ts` returns a read-only note (course name, colour accent, "Matched by code", "Archived course") for sessions with exactly ONE matching course; `EventItem`/`Timeline`/`TodayPage`/`CalendarPage` only pass it through. It loads `courseInsights` on demand and only when courses exist for the same account as the calendar, so with the flag off nothing is loaded or changed (bundle test markers include the page and matcher).
 - Tests: `courseInsights.test.ts`, `src/pages/CoursesSuggest.test.tsx`, `e2e/courses-suggest.e2e.ts` (project `courses`). Not built: per-session "why matched" detail, task/exam counts.
 
+## Hosted Courses release preparation (Phase 4B.1c) — [docs/phase-4b/HOSTED_COURSES_RELEASE.md](docs/phase-4b/HOSTED_COURSES_RELEASE.md)
+- PREPARED, NOT EXECUTED: the `courses` migration is still not applied to hosted and `VITE_ENABLE_PLANNER_COURSES` stays pinned `'false'`. The runbook has four owner-approved gates (A preflight, B apply the one reviewed SQL file in a single transaction, C two-account check, D separate flag PR). Never run a hosted gate, `supabase db push`, the rollback script or the check script against hosted without the owner's explicit approval.
+- `scripts/hosted-courses-check.mjs` (+ `hostedCoursesCore.mjs`) is the Courses twin of `hosted-two-user-rls-check.mjs` (which is unchanged): publishable key and two normal sessions only, own confirmation phrase, true offline `--dry-run`, synthetic rows marked `ORBIT_RLS_CHECK_<run>`, verified cleanup, NO skip mode (missing table, failed or missing required check, crash, leftover = exit 1). Tests: `tests/planner/hosted-courses-script.test.ts` (guards, executed as a child process) and `supabase/tests/courses-hosted-check.test.ts` (the real checks against the real migration in PGlite through `pgliteSupabase.ts`, including weakened schemas and failure injection). It was also run once against the LOCAL Docker stack (59 passed, 0 failed). Hosted behaviour is still NOT verified.
+
 ## Coding standards
 - TypeScript everywhere; no `any`.
 - Function components, named exports (default export only for `App`).
