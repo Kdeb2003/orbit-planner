@@ -51,10 +51,10 @@ describe('timetable provenance code (design stage)', () => {
     expect(readFileSync(resolve('.env.example'), 'utf8')).toMatch(/^# VITE_ENABLE_TIMETABLE_SAVE=true/m)
   })
 
-  it('the production workflow pins the save flag to the string false', () => {
+  it('the production workflow explicitly enables timetable saving (hosted migration applied and verified)', () => {
     const wf = readFileSync(resolve('.github/workflows/deploy.yml'), 'utf8')
-    expect(wf).toMatch(/^\s*VITE_ENABLE_TIMETABLE_SAVE: 'false'\s*$/m)
-    expect(wf).not.toMatch(/TIMETABLE_SAVE: '?"?true/)
+    expect(wf).toMatch(/^\s*VITE_ENABLE_TIMETABLE_SAVE: 'true'\s*$/m)
+    expect(wf).not.toMatch(/TIMETABLE_SAVE: '?"?false/)
   })
 
   it('only forward SQL is under migrations/; the rollback lives in supabase/recovery/ where Supabase never runs it', () => {

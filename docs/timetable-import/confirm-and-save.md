@@ -4,7 +4,7 @@ The last step of the UTN importer ("Summary") can save the reviewed sessions int
 
 ## Availability (read this first)
 
-* **OFF by default.** The provenance SQL is **not deployed to the hosted project**. The Save area only exists when the build sets `VITE_ENABLE_TIMETABLE_SAVE=true`; otherwise the page is exactly the preview with its "Preview only" notice.
+* **OFF by default in source; ON in the production deploy workflow.** The provenance migration is applied to the hosted project and the hosted two-account RLS/provenance check passed (79 passed, 0 failed). The Save area only exists when the build sets `VITE_ENABLE_TIMETABLE_SAVE=true`; otherwise the page is exactly the preview with its "Preview only" notice.
 * **Even when enabled it probes the server** (both tables and the RPC, read-only). If they are missing the card says "Saving is not available here" and offers nothing to click.
 * **Needs a signed-in cloud account.** In local mode / signed out it shows "Sign in to save".
 
