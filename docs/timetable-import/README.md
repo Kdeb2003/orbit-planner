@@ -9,3 +9,5 @@
 | [phase-4a2-plan.md](phase-4a2-plan.md) | Handoff plan for the user-facing import, schema limitations, open questions |
 
 Scope: Phase 4A.1 parses and validates (`src/timetable/utn/`). Phase 4A.2 checkpoint 1 adds a **preview-only** upload-and-review page (`src/pages/ImportTimetablePage.tsx`). Nothing is uploaded, no calendar data is created or changed, and nothing is persisted. Saving to the calendar is the next checkpoint.
+
+Phase 4A.3 checkpoint 1 (design only): durable import provenance, safe re-import and the hosted two-account check are proposed in [../proposals/timetable-import-provenance.md](../proposals/timetable-import-provenance.md). The migration is tracked in `supabase/migrations/` and validated locally; it is NOT yet applied to the hosted project, and production saving stays disabled.

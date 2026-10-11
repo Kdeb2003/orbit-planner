@@ -1,4 +1,5 @@
 import { ArrowLeft, Info } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { groupAnomalies } from '../../timetable/utn/review.ts'
 import type { ReviewResult, SourceFacts, StatusFilter } from '../../timetable/utn/review.ts'
@@ -13,11 +14,13 @@ interface Props {
   anomalies: readonly SourceAnomaly[]
   onShow: (status: StatusFilter, tab: 'sessions' | 'clashes') => void
   onBack: () => void
+  /** When saving is enabled for this environment, the save workflow replaces the preview-only notice. */
+  saveSlot?: ReactNode
 }
 
 export const PREVIEW_COMPLETE_TEXT = 'Preview complete. Saving these sessions to your calendar will be available after cloud import verification.'
 
-export function SummaryStep({ result, facts, anomalies, onShow, onBack }: Props) {
+export function SummaryStep({ result, facts, anomalies, onShow, onBack, saveSlot }: Props) {
   const { summary } = result
   const groups = groupAnomalies(anomalies)
   const link = 'text-accent-soft underline underline-offset-2'
@@ -97,6 +100,9 @@ export function SummaryStep({ result, facts, anomalies, onShow, onBack }: Props)
           </Notice>
         )}
 
+        {saveSlot ? (
+          <div className="rounded-xl border border-line p-3">{saveSlot}</div>
+        ) : (
         <Notice tone="accent" role="status">
           <p className="flex items-start gap-2" data-testid="preview-complete">
             <Info size={16} className="mt-0.5 shrink-0" aria-hidden />
@@ -104,6 +110,7 @@ export function SummaryStep({ result, facts, anomalies, onShow, onBack }: Props)
           </p>
           <p className="mt-2 text-xs text-muted">Nothing has been saved: your calendar, your account and this browser’s storage are unchanged. Leaving this page discards the preview. The “Saved to cloud” indicator at the top of the app describes your existing calendar only; it does not mean this timetable was saved.</p>
         </Notice>
+        )}
 
         <div className="flex flex-wrap justify-between gap-2">
           <button type="button" className={secondaryBtn} onClick={onBack}>

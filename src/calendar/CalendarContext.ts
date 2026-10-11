@@ -1,11 +1,14 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { CloudApi } from '../cloud/cloudApi'
+import type { ImportApi } from '../cloud/importApi'
 import type { CalendarSnapshot, CalendarSource } from './types'
 
 export interface CalendarContextValue {
   source: CalendarSource
   /** Cloud table access for the signed-in user (used by the explicit local-data import); null in local mode. */
   api: CloudApi | null
+  /** Timetable-import provenance backend for the signed-in user (null in local mode / signed out). */
+  importApi: ImportApi | null
   userId: string | null
 }
 

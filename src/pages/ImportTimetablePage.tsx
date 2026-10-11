@@ -8,10 +8,12 @@ import type { ReviewTab } from '../components/timetable/ReviewStep'
 import { Notice, secondaryBtn } from '../components/timetable/shared'
 import { SourcePanel } from '../components/timetable/SourcePanel'
 import { SummaryStep } from '../components/timetable/SummaryStep'
+import { SaveCard } from '../components/timetableSave/SaveCard'
 import { UploadStep } from '../components/timetable/UploadStep'
 import type { UploadPhase } from '../components/timetable/UploadStep'
 import { PageHeader } from '../components/ui/PageHeader'
 import { TimetableLoadError, loadTimetable } from '../timetable/import/loadTimetable'
+import { TIMETABLE_SAVE_ENABLED } from '../timetable/save/flag'
 import type { TimetableExtraction } from '../timetable/utn/index'
 import {
   NO_FILTERS, buildReview, commitEdit, describeSource, detectCourses, initialState, resetEdit, setReviewed, toggleExcluded,
@@ -21,6 +23,7 @@ import type { ReviewFilters, ReviewState, SessionValues, StatusFilter } from '..
 type Step = 'courses' | 'sessions' | 'summary'
 
 interface Loaded {
+  file: File
   fileName: string
   extraction: TimetableExtraction
 }
@@ -75,7 +78,7 @@ export function ImportTimetablePage() {
         if (run === latest.current) setPhase({ kind: 'loading', progress })
       })
       if (run !== latest.current) return
-      setLoaded({ fileName: file.name, extraction })
+      setLoaded({ file, fileName: file.name, extraction })
       setState(initialState(extraction.sessions))
       setFilters(NO_FILTERS)
       setTab('sessions')
@@ -106,9 +109,15 @@ export function ImportTimetablePage() {
           <ArrowLeft size={16} aria-hidden /> Calendar
         </Link>
         <PageHeader title="Import timetable" subtitle="Read your UTN semester timetable PDF and review what it contains." />
-        <Notice tone="accent" title="Preview only">
-          Nothing is added to your calendar. The PDF stays in this browser tab, and the sessions below are discarded when you leave this page. Saving to your calendar is a later step.
-        </Notice>
+        {TIMETABLE_SAVE_ENABLED ? (
+          <Notice tone="accent" title="Review, then save">
+            Nothing is added to your calendar until you confirm on the last step. The PDF itself stays in this browser tab and is never uploaded; only the sessions you confirm are saved to your account.
+          </Notice>
+        ) : (
+          <Notice tone="accent" title="Preview only">
+            Nothing is added to your calendar. The PDF stays in this browser tab, and the sessions below are discarded when you leave this page. Saving to your calendar is a later step.
+          </Notice>
+        )}
       </div>
 
       {showUpload && <UploadStep phase={phase} onFile={onFile} />}
@@ -163,7 +172,7 @@ export function ImportTimetablePage() {
               onContinue={() => go('summary')}
             />
           )}
-          {step === 'summary' && <SummaryStep result={result} facts={facts} anomalies={loaded.extraction.anomalies} onShow={showSessions} onBack={() => go('sessions')} />}
+          {step === 'summary' && <SummaryStep result={result} facts={facts} anomalies={loaded.extraction.anomalies} onShow={showSessions} onBack={() => go('sessions')} saveSlot={TIMETABLE_SAVE_ENABLED ? <SaveCard file={loaded.file} result={result} facts={facts} choices={state.choices} /> : undefined} />}
         </>
       )}
 

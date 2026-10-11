@@ -94,7 +94,7 @@ describe('migrations', () => {
       `select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' order by relname`,
     )
-    expect(rows.map((r) => r.relname)).toEqual(['events', 'recurring_series', 'series_exceptions'])
+    expect(rows.map((r) => r.relname)).toEqual(['event_import_links', 'event_imports', 'events', 'recurring_series', 'series_exceptions'])
     expect(rows.every((r) => r.relrowsecurity)).toBe(true)
   })
 
@@ -369,9 +369,15 @@ describe('helper function exposure', () => {
   ]
   const trigs = ['orbit_private.orbit_protect_row()', 'orbit_private.orbit_validate_zone()']
 
-  it('no ORBIT functions exist in the public schema (nothing is exposed as an RPC endpoint)', async () => {
-    const { rows } = await db.query(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'orbit%'`)
-    expect(rows).toEqual([])
+  it('the only ORBIT functions in the public schema are the two reviewed import RPCs (SECURITY INVOKER, not executable by anon)', async () => {
+    const { rows } = await db.query<{ proname: string; prosecdef: boolean; anon: boolean }>(
+      `select p.proname, p.prosecdef, has_function_privilege('anon', p.oid, 'execute') as anon
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'orbit%' order by 1`,
+    )
+    expect(rows).toEqual([
+      { proname: 'orbit_forget_import_history', prosecdef: false, anon: false },
+      { proname: 'orbit_import_sessions', prosecdef: false, anon: false },
+    ])
   })
 
   it('PUBLIC and anon cannot execute any helper; triggers are not executable by clients at all', async () => {

@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { AuthRoute, RequireAuth } from './auth/guards'
 import { CalendarProvider } from './calendar/CalendarProvider'
 import type { CloudApi } from './cloud/cloudApi'
+import type { ImportApi } from './cloud/importApi'
 import { AppLayout } from './layouts/AppLayout'
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage'
 import { LoginPage } from './pages/auth/LoginPage'
@@ -17,9 +18,9 @@ import { TodayPage } from './pages/TodayPage'
 // Loaded on demand (with PDF.js) so the calendar's main bundle does not grow for a page most visits never open.
 const ImportTimetablePage = lazy(() => import('./pages/ImportTimetablePage').then((m) => ({ default: m.ImportTimetablePage })))
 
-export function AppRoutes({ createApi }: { createApi?: (userId: string) => CloudApi | null } = {}) {
+export function AppRoutes({ createApi, createImportApi }: { createApi?: (userId: string) => CloudApi | null; createImportApi?: () => ImportApi | null } = {}) {
   return (
-    <CalendarProvider createApi={createApi}>
+    <CalendarProvider createApi={createApi} createImportApi={createImportApi}>
       <Routes>
         <Route path="login" element={<AuthRoute><LoginPage /></AuthRoute>} />
         <Route path="register" element={<AuthRoute><RegisterPage /></AuthRoute>} />
