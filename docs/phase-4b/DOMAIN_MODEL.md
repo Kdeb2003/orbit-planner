@@ -178,7 +178,7 @@ Handled client-side over the loaded set in the MVP (a student has hundreds, not 
 
 * Creates accept a client-generated UUID and use `ON CONFLICT DO NOTHING` (same contract as `CloudApi.insert*` [Fact]), so a retried create cannot duplicate.
 * Updates/deletes are conditional on the raw `updated_at` (optimistic concurrency) [Fact]; a stale write is rejected, not merged.
-* External imports (future) use `(user_id, external_source, external_id)` uniqueness.
+* External imports (future) use `(user_id, external_source, external_instance, external_id)` uniqueness.
 
 ### 8.1 Stale writes and status changes (one predictable rule)
 * Every update/delete is conditional on the `updated_at` the client last read [Fact pattern]. A stale request changes **nothing** and returns `conflict` ("This changed on another device, so your edit was not saved. The latest version has been loaded." — the existing message [Fact]); the planner then re-reads that row.
