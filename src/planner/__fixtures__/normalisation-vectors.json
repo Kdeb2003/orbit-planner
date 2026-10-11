@@ -1,0 +1,19 @@
+{
+  "description": "Golden vectors for normalisation rule N (DOMAIN_MODEL §6.1). Shared by the TypeScript tests and, in 4B.1b, the PostgreSQL generated-column tests. 'input' may contain JSON escapes.",
+  "vectors": [
+    { "name": "lowercase", "input": "inf 101", "key": "INF 101" },
+    { "name": "padded and doubled space", "input": " INF  101 ", "key": "INF 101" },
+    { "name": "no-break space", "input": "INF 101", "key": "INF 101" },
+    { "name": "tab", "input": "INF\t101", "key": "INF 101" },
+    { "name": "newline and carriage return", "input": "INF\r\n101", "key": "INF 101" },
+    { "name": "form feed and vertical tab", "input": "INF\f\u000b101", "key": "INF 101" },
+    { "name": "mixed whitespace run", "input": "\t inf   \n 101 ", "key": "INF 101" },
+    { "name": "non-ASCII unchanged", "input": "Ünï 1", "key": "ÜNï 1" },
+    { "name": "non-ASCII lowercase not folded", "input": "straße", "key": "STRAßE" },
+    { "name": "other unicode space is not whitespace", "input": "INF 101", "key": "INF 101" },
+    { "name": "empty", "input": "", "key": "" },
+    { "name": "spaces only", "input": "   ", "key": "" },
+    { "name": "mixed whitespace only", "input": " \t\r\n\f\u000b  ", "key": "" },
+    { "name": "digits and punctuation", "input": "ma-1.2/b", "key": "MA-1.2/B" }
+  ]
+}

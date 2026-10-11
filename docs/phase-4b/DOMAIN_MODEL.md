@@ -155,7 +155,8 @@ Input: a session (`courseCode`, local date in its zone) and all of the user's co
 4. Drop **out** candidates; the rest form the *remaining set* R.
 5. R empty and at least one *out* candidate existed → `outside-term`. Nothing is associated; the UI may suggest creating a course for that term (USER_WORKFLOWS §1).
 6. |R| = 1 → `matched` (flagged *archived* if that course is archived). Confidence **`dated`** if the course is *in*, **`by-code`** if *unknown*.
-7. |R| > 1 → `matched` **only if exactly one candidate in R is *in* and none in R is *unknown***; otherwise `ambiguous`. (An undated candidate cannot be ruled out, so it prevents certainty; overlapping term dates are ambiguous too.)
+7. |R| > 1 → `ambiguous`. (An undated candidate cannot be ruled out, and overlapping term dates cannot be told apart; a "single dated match among several" cannot occur, because every candidate left in R is either *in* or *unknown*.)
+   Malformed term data (only one of the two dates, an invalid date, or `term_end < term_start`; forbidden by the database) classifies a candidate as *invalid*: it can be neither ruled in nor out, so while one remains in R the result is `ambiguous`, never `matched`.
 8. `ambiguous`, `outside-term` and `none` sessions look exactly like today's unassigned sessions. ORBIT never guesses and never presents an authoritative course for them.
 
 Consequences
