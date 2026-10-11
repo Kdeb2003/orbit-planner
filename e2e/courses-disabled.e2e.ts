@@ -30,5 +30,5 @@ test('feature off: no Plan entry, /plan/courses is not a route, and no request e
   await expect(page.getByTestId('sync-status')).toHaveAttribute('data-state', 'saved')
 
   expect(log.db.log.filter((l) => / courses /.test(l))).toEqual([])
-  expect(loaded.filter((u) => /\/rest\/v1\/courses|CoursesPage|cloud\/plannerApi\.ts|plannerSource|plannerMappers/.test(u))).toEqual([]) // not even the code is fetched
+  expect(loaded.filter((u) => /\/rest\/v1\/courses|CoursesPage|cloud\/plannerApi\.ts|plannerSource|plannerMappers|courseInsights|SuggestPanel/.test(u))).toEqual([]) // not even the code is fetched
 })

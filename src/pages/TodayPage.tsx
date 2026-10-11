@@ -8,6 +8,7 @@ import { Timeline } from '../components/Timeline'
 import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
 import { useCalendar } from '../calendar/CalendarContext'
+import { useCourseAnnotator } from '../planner/useCourseAnnotator'
 import { useNow } from '../hooks/useNow'
 import type { EventCategory } from '../types'
 import { currentEvent, eventsOnDay, nextEvent, summarizeDay } from '../utils/events'
@@ -26,6 +27,7 @@ const LOOKAHEAD_DAYS = 120
 export function TodayPage() {
   const now = useNow(1000)
   const { events, series } = useCalendar()
+  const courseOf = useCourseAnnotator()
   const editor = useEventEditor()
   const today = dateKey(now)
 
@@ -81,7 +83,7 @@ export function TodayPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card title="Today’s timeline" className="lg:col-span-2">
           {todays.length ? (
-            <Timeline events={todays} day={today} now={now} onSelect={editor.openEdit} />
+            <Timeline events={todays} day={today} now={now} onSelect={editor.openEdit} courseOf={courseOf} />
           ) : (
             <div className="py-6 text-center">
               <p className="text-sm text-muted">
@@ -101,7 +103,7 @@ export function TodayPage() {
         <div className="space-y-6">
           <Card title="Happening now">
             {current ? (
-              <EventItem event={current} day={today} state="live" onSelect={editor.openEdit} />
+              <EventItem event={current} day={today} state="live" onSelect={editor.openEdit} course={courseOf?.(current)} />
             ) : (
               <p className="text-sm text-muted">No event in progress.</p>
             )}
@@ -110,7 +112,7 @@ export function TodayPage() {
           <Card title="Up next">
             {upcoming ? (
               <div className="space-y-2">
-                <EventItem event={upcoming} day={upcomingDay} onSelect={editor.openEdit} />
+                <EventItem event={upcoming} day={upcomingDay} onSelect={editor.openEdit} course={courseOf?.(upcoming)} />
                 {upcomingDay !== today && <p className="text-xs text-muted">{formatDayShort(upcomingDay)}</p>}
               </div>
             ) : (

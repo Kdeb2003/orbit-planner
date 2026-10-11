@@ -4,6 +4,8 @@ import { eventTimeLabel } from '../utils/events'
 
 import type { DateKey } from '../utils/time'
 import { categoryStyle } from './categories'
+import { COURSE_COLOR_CLASSES } from './planner/courseColors'
+import type { CourseAnnotation } from '../planner/useCourseAnnotator'
 
 const SESSION_LABEL = { main: 'Main', tutorial: 'Tutorial', seminar: 'Seminar', practical: 'Practical', other: 'Other' } as const
 
@@ -14,10 +16,12 @@ interface EventItemProps {
   onSelect?: (event: ScheduledItem) => void
   /** For cancelled occurrences: bring the occurrence back. */
   onRestore?: (event: ScheduledItem) => void
+  /** Read-only: the single course this session belongs to (never a guess; absent for ambiguous or unmatched sessions). */
+  course?: CourseAnnotation
 }
 
 /** One event row; a button when `onSelect` is given. */
-export function EventItem({ event, day, state = 'next', onSelect, onRestore }: EventItemProps) {
+export function EventItem({ event, day, state = 'next', onSelect, onRestore, course }: EventItemProps) {
   const c = categoryStyle[event.category]
   const cancelled = !!event.cancelled
   const body = (
@@ -42,6 +46,17 @@ export function EventItem({ event, day, state = 'next', onSelect, onRestore }: E
           {!cancelled && event.modified && ' · Edited'}
           {event.dstAdjusted && ' · Shifted for DST'}
         </p>
+        {course && (
+          <p data-testid="course-annotation" data-course-id={course.courseId} className={`mt-1 flex items-center gap-1.5 text-xs text-muted ${course.archived ? 'italic' : ''}`}>
+            <span className={`inline-block h-2.5 w-1 shrink-0 rounded-full ${COURSE_COLOR_CLASSES[course.color].bg}`} aria-hidden />
+            <span className="truncate">
+              <span className="sr-only">Course: </span>
+              {course.name}
+              {course.confidence === 'by-code' && ' · Matched by code'}
+              {course.archived && ' · Archived course'}
+            </span>
+          </p>
+        )}
       </div>
       {state === 'live' && !cancelled && <span className="self-start text-xs font-medium text-accent-soft">Now</span>}
     </>

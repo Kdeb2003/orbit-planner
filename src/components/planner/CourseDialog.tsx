@@ -1,5 +1,5 @@
 import { Check, Loader2, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import {
   changedFields,
@@ -13,7 +13,9 @@ import {
   nextFreeColor,
 } from '../../planner/courseForm'
 import type { CourseFormValues } from '../../planner/courseForm'
+import { matchImpact } from '../../planner/courseInsights'
 import { sharedCodeCourses } from '../../planner/courseOverlap'
+import type { CalendarSession } from '../../planner/courses'
 import { COURSE_LIMITS } from '../../planner/courseValidation'
 import type { PlannerSnapshot, PlannerSource } from '../../planner/plannerSource'
 import { COURSE_COLORS } from '../../types/planner'
@@ -29,6 +31,12 @@ interface CourseDialogProps {
   onClose: (notice?: string) => void
   /** Close the dialog and show the existing course that blocks this one. */
   onLocate: (id: string) => void
+  /** Create mode only: starting values (e.g. suggested from the calendar). They are shown for review, never saved by themselves. */
+  initial?: Partial<CourseFormValues>
+  /** A note shown at the top, e.g. "Suggested from calendar — please check." */
+  hint?: string
+  /** The calendar's sessions, to show how saving would change which sessions are matched. Empty when unavailable. */
+  sessions?: readonly CalendarSession[]
 }
 
 const inputClass =
@@ -88,13 +96,13 @@ interface Stale {
   kept: boolean
 }
 
-export function CourseDialog({ course, snapshot, source, onClose, onLocate }: CourseDialogProps) {
+export function CourseDialog({ course, snapshot, source, onClose, onLocate, initial, hint, sessions = [] }: CourseDialogProps) {
   const uid = useId()
   const fid = (n: string) => `${uid}-${n}`
   const ref = useRef<HTMLDialogElement>(null)
   // One id per create dialog: a retry after an unclear failure addresses the SAME row, so it can never create a duplicate.
   const [newId] = useState(() => crypto.randomUUID())
-  const [values, setValues] = useState<CourseFormValues>(() => (course ? courseToForm(course) : emptyCourseForm(nextFreeColor(snapshot.courses))))
+  const [values, setValues] = useState<CourseFormValues>(() => (course ? courseToForm(course) : { ...emptyCourseForm(nextFreeColor(snapshot.courses)), ...initial }))
   const [baseUpdatedAt, setBaseUpdatedAt] = useState(course?.updatedAt)
   const [showErrors, setShowErrors] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -132,6 +140,22 @@ export function CourseDialog({ course, snapshot, source, onClose, onLocate }: Co
   const refreshed = stale !== null && (editedGone || (latest !== undefined && latest.updatedAt !== baseUpdatedAt) || (snapshot.lastSyncedAt ?? 0) > stale.at)
   const staleBlocking = stale !== null && !stale.kept
   const differences = latest ? changedFields(latest, values) : []
+  // Non-blocking: a course with the same key exists already (the server's rule is authoritative).
+  const sameKeyNow = !duplicate ? findSameKey(snapshot.courses, values, course?.id ?? created?.id) : undefined
+  // The REAL effect on timetable sessions, computed with the real matching rules (C-12).
+  const dateErrors = courseFieldErrors(values)
+  const impact = useMemo(() => {
+    if (sessions.length === 0 || dateErrors.termStart || dateErrors.termEnd) return null
+    const both = values.termStart && values.termEnd
+    const i = matchImpact(sessions, snapshot.courses, {
+      id: course?.id ?? created?.id,
+      code: values.code,
+      termStart: both ? values.termStart : undefined,
+      termEnd: both ? values.termEnd : undefined,
+      archivedAt: course?.archivedAt,
+    })
+    return i.becomeAmbiguous + i.becomeOutsideTerm + i.becomeUnassigned > 0 ? i : null
+  }, [sessions, snapshot.courses, values.code, values.termStart, values.termEnd, course?.id, course?.archivedAt, created?.id, dateErrors.termStart, dateErrors.termEnd])
 
   const set = <K extends keyof CourseFormValues>(k: K, v: CourseFormValues[K]) => {
     setValues((p) => ({ ...p, [k]: v }))
@@ -204,6 +228,12 @@ export function CourseDialog({ course, snapshot, source, onClose, onLocate }: Co
             <X size={18} aria-hidden />
           </button>
         </div>
+
+        {hint && !course && (
+          <p data-testid="course-hint" className="rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-sm text-muted">
+            {hint}
+          </p>
+        )}
 
         {alert && (
           <p role="alert" data-testid="course-save-error" className="rounded-xl border border-deadline/50 bg-deadline/10 px-3 py-2 text-sm">
@@ -345,6 +375,33 @@ export function CourseDialog({ course, snapshot, source, onClose, onLocate }: Co
             <p>
               Another course uses this code ({shared.map((s) => s.course.name + (s.course.termLabel ? ` · ${s.course.termLabel}` : '')).join(', ')}) and the term dates{' '}
               {shared.some((s) => s.reason === 'missing') ? 'are missing or incomplete' : 'overlap'}. Matching timetable sessions may be ambiguous and stay unassigned. You can still save.
+            </p>
+          </div>
+        )}
+
+        {sameKeyNow && (
+          <div role="note" data-testid="dialog-same-key" className="flex items-start gap-2 rounded-xl border border-work/40 bg-work/10 p-3 text-xs">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0 text-work" aria-hidden />
+            <p>
+              “{sameKeyNow.name}” already has this code, institution and term label, so saving will be rejected. Give this course a term label (for example the semester) or an institution that tells them apart.
+            </p>
+          </div>
+        )}
+
+        {impact && (
+          <div role="note" data-testid="dialog-impact" className="flex items-start gap-2 rounded-xl border border-work/40 bg-work/10 p-3 text-xs">
+            <TriangleAlert size={14} className="mt-0.5 shrink-0 text-work" aria-hidden />
+            <p>
+              Saving this would change how timetable sessions are matched. Sessions now matched to{' '}
+              {impact.fromCourseIds.map((id) => snapshot.courses.find((c) => c.id === id)?.name ?? 'another course').join(', ')}:{' '}
+              {[
+                impact.becomeAmbiguous > 0 && `${impact.becomeAmbiguous} would become ambiguous (they could belong to more than one course)`,
+                impact.becomeOutsideTerm > 0 && `${impact.becomeOutsideTerm} would fall outside the term dates`,
+                impact.becomeUnassigned > 0 && `${impact.becomeUnassigned} would no longer belong to any course`,
+              ]
+                .filter(Boolean)
+                .join('; ')}
+              . Nothing in your calendar is changed, and you can still save.
             </p>
           </div>
         )}

@@ -1,4 +1,5 @@
 import { Archive, ArchiveRestore, CalendarRange, Loader2, MapPin, Pencil, Tag, Trash2, TriangleAlert } from 'lucide-react'
+import type { CodeLevel, CourseCounts } from '../../planner/courseInsights'
 import type { SharedCode } from '../../planner/courseOverlap'
 import type { Course } from '../../types/planner'
 import { COURSE_COLOR_CLASSES } from './courseColors'
@@ -11,6 +12,8 @@ interface CourseCardProps {
   /** An action on THIS course is running. */
   busy: boolean
   highlighted: boolean
+  /** How this course's code lines up with the saved calendar. Undefined while the calendar is not available. */
+  matching?: { counts: CourseCounts; codeLevel?: CodeLevel; stale: boolean }
   onEdit: () => void
   onArchive: () => void
   onRestore: () => void
@@ -23,7 +26,7 @@ const label = (c: Course) => [c.name, c.termLabel].filter(Boolean).join(' · ')
 const actionBtn =
   'inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-line px-3 text-sm hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50'
 
-export function CourseCard({ course, shared, busy, highlighted, onEdit, onArchive, onRestore, onDelete }: CourseCardProps) {
+export function CourseCard({ course, shared, busy, highlighted, matching, onEdit, onArchive, onRestore, onDelete }: CourseCardProps) {
   const archived = course.archivedAt !== undefined
   const colors = COURSE_COLOR_CLASSES[course.color]
   return (
@@ -89,6 +92,35 @@ export function CourseCard({ course, shared, busy, highlighted, onEdit, onArchiv
           Archived on <time dateTime={course.archivedAt}>{day(course.archivedAt.slice(0, 10))}</time>. Timetable sessions with this code can still be matched.
         </p>
       )}
+
+      <div data-testid="match-summary" className="mt-3 space-y-1 border-t border-line pt-3 text-xs text-muted">
+        {!course.code ? (
+          <p>No course code, so timetable sessions cannot be matched to this course.</p>
+        ) : !matching ? (
+          <p>Matching with your calendar is not available right now.</p>
+        ) : (
+          <>
+            <p>
+              Timetable sessions: <strong className="text-white">{matching.counts.dated}</strong> matched by term dates · <strong className="text-white">{matching.counts.byCode}</strong> matched by code only
+              {matching.stale && ' (based on data that may be out of date)'}
+            </p>
+            {matching.codeLevel && (matching.codeLevel.ambiguous > 0 || matching.codeLevel.outsideTerm > 0) && (
+              <p data-testid="code-level-counts">
+                For the code <strong className="text-white">{matching.codeLevel.code}</strong> as a whole
+                {matching.codeLevel.courseIds.length > 1 ? ` (shared by ${matching.codeLevel.courseIds.length} courses)` : ''}:{' '}
+                {[
+                  matching.codeLevel.ambiguous > 0 && `${matching.codeLevel.ambiguous} ambiguous`,
+                  matching.codeLevel.outsideTerm > 0 && `${matching.codeLevel.outsideTerm} outside every term`,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}{' '}
+                — these are not assigned to any course.
+              </p>
+            )}
+            {matching.counts.dated + matching.counts.byCode === 0 && !matching.codeLevel?.total && <p>No saved calendar sessions use this code.</p>}
+          </>
+        )}
+      </div>
 
       {shared.length > 0 && (
         <div data-testid="shared-code-warning" className="mt-3 flex items-start gap-2 rounded-xl border border-work/40 bg-work/10 p-2.5 text-xs">

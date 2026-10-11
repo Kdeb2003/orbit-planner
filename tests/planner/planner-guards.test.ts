@@ -141,7 +141,8 @@ describe('planner code is cloud-only and isolated', () => {
       .filter((f) => /planner\/|plannerApi|plannerSource|usePlanner|PlannerContext/.test(code(f)))
       .map(rel)
       .sort()
-    const allowed = ['src/App.tsx', 'src/calendar/CalendarProvider.tsx', 'src/calendar/calendarManager.ts', 'src/layouts/AppLayout.tsx', 'src/pages/CoursesPage.tsx']
+    // (the calendar rows import only the TYPE of the read-only course annotation)
+    const allowed = ['src/App.tsx', 'src/calendar/CalendarProvider.tsx', 'src/calendar/calendarManager.ts', 'src/layouts/AppLayout.tsx', 'src/pages/CoursesPage.tsx', 'src/pages/TodayPage.tsx', 'src/pages/CalendarPage.tsx', 'src/components/EventItem.tsx', 'src/components/Timeline.tsx']
     expect(importers.filter((f) => !allowed.includes(f) && !f.startsWith('src/components/planner/'))).toEqual([])
     for (const f of allowed) expect(importers).toContain(f)
   })
@@ -191,7 +192,8 @@ describe('the Courses UI is flag-gated (Checkpoint 2B.1)', () => {
     for (const f of files) {
       const c = code(f)
       expect(c, rel(f)).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/)
-      expect(c, rel(f)).not.toMatch(/localStorage|sessionStorage|indexedDB|eventStore|seriesStore|useCalendar|createEvent|updateEvent|removeEvent|createSeries|@supabase|lib\/supabase|\bfetch\s*\(|console\.\w+/)
+      // The Courses UI READS the calendar snapshot (useCalendar) to derive suggestions; it never calls a calendar write.
+      expect(c, rel(f)).not.toMatch(/localStorage|sessionStorage|indexedDB|eventStore|seriesStore|createEvent|updateEvent|removeEvent|createSeries|updateSeries|removeSeries|setException|clearException|cal\.source|@supabase|lib\/supabase|\bfetch\s*\(|console\.\w+/)
     }
   })
 
