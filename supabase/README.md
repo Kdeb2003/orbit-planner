@@ -1,6 +1,6 @@
 # ORBIT database (Supabase / PostgreSQL)
 
-**Status: both migrations are deployed to the hosted ORBIT project (`npx supabase db push`).**
+**Status: the first two migrations (core schema, RLS policies) are deployed to the hosted ORBIT project (`npx supabase db push`).**
 The app reads and writes these tables for signed-in users (Phase 3B). Hosted CRUD, series/exceptions, DST, optimistic concurrency, synthetic import and anonymous denial were verified with temporary synthetic rows (deleted); two-account isolation is not yet tested (see [docs/cloud-sync.md](../docs/cloud-sync.md)).
 
 **Verified live (Phase 3A):** the migrations are deployed to the hosted project (`npx supabase db push`). Against the real Supabase API: the signed-in session is accepted by the Auth server; authenticated `SELECT` on `events`, `recurring_series` and `series_exceptions` returns HTTP 200 with 0 rows; anonymous `SELECT` on all three returns HTTP 401 / PostgreSQL `42501` (permission denied). The dashboard's “0 of 3 tables exposed” indicator does not block the grants-based access above. **Not yet verified on the hosted project:** cross-user isolation and insert/update/delete through the API (Phase 3B integration testing). Cloud calendar sync is **not implemented**, and no local calendar data has been uploaded or migrated.
@@ -13,7 +13,9 @@ The Supabase CLI writes link metadata (project ref, pooler host) to `supabase/.t
 |---|---|
 | `migrations/20261009120000_core_schema.sql` | Private helper schema, tables (RLS **enabled and client privileges revoked immediately**), constraints, indexes, triggers |
 | `migrations/20261009120100_rls_policies.sql` | Grants the minimum privileges to `authenticated` and installs all ownership policies |
-| `migrations/20261015120000_event_imports.sql` | Import provenance (Phase 4A.3): `event_imports`, `event_import_links`, `orbit_import_sessions`, `orbit_forget_import_history`. **Tracked and validated locally (PostgreSQL 17.11); NOT yet applied to the hosted project.** |
+| `migrations/20261015120000_event_imports.sql` | Import provenance (Phase 4A.3): `event_imports`, `event_import_links`, `orbit_import_sessions`, `orbit_forget_import_history`. **Validated locally (PostgreSQL 17.11) and in PGlite, then applied to the hosted project and verified there (two-account check: 79 passed, 0 failed). Timetable saving is enabled in the production workflow (`VITE_ENABLE_TIMETABLE_SAVE: 'true'`).** |
+| `migrations/20261020120000_courses.sql` | Planner courses (Phase 4B.1b): `courses`, `orbit_private.orbit_normalise_key`, generic `orbit_private.orbit_protect_owned_row`. **Tested locally only (PGlite and a rolled-back transaction on local Supabase, PostgreSQL 17.11); NOT applied to the hosted project.** |
+| `tests/courses.test.ts` | PGlite tests of the courses migration (constraints, rule N vectors, uniqueness, identity protection, isolation, rollback). |
 | `recovery/` | Manual recovery scripts (the provenance rollback). Never read by `db push`/`db reset` or the migration tests. |
 | `tests/import-provenance.test.ts` | PGlite tests of the provenance migration (isolation, ownership FKs, RPC, rollback). |
 | `tests/migrations.test.ts` | Runs the real SQL in an in-memory PostgreSQL (PGlite): constraints, cross-user isolation, the state after migration 1 only, function exposure. Part of `npm test`. |

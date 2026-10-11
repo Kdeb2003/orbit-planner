@@ -59,9 +59,10 @@ describe('timetable provenance code (design stage)', () => {
 
   it('only forward SQL is under migrations/; the rollback lives in supabase/recovery/ where Supabase never runs it', () => {
     const migrations = readdirSync(resolve('supabase/migrations')).sort()
-    expect(migrations).toEqual(['20261009120000_core_schema.sql', '20261009120100_rls_policies.sql', '20261015120000_event_imports.sql'])
+    expect(migrations).toEqual(['20261009120000_core_schema.sql', '20261009120100_rls_policies.sql', '20261015120000_event_imports.sql', '20261020120000_courses.sql'])
     expect(migrations.some((n) => /rollback|down|undo/i.test(n))).toBe(false)
     expect(readdirSync(resolve('supabase/recovery'))).toContain('20261015120000_event_imports.rollback.sql')
+    expect(readdirSync(resolve('supabase/recovery'))).toContain('20261020120000_courses.rollback.sql')
     expect(existsSync(resolve('supabase/proposals'))).toBe(false)
   })
 })

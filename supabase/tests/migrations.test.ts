@@ -94,7 +94,7 @@ describe('migrations', () => {
       `select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where n.nspname = 'public' and c.relkind = 'r' order by relname`,
     )
-    expect(rows.map((r) => r.relname)).toEqual(['event_import_links', 'event_imports', 'events', 'recurring_series', 'series_exceptions'])
+    expect(rows.map((r) => r.relname)).toEqual(['courses', 'event_import_links', 'event_imports', 'events', 'recurring_series', 'series_exceptions'])
     expect(rows.every((r) => r.relrowsecurity)).toBe(true)
   })
 

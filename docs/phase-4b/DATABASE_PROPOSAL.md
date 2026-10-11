@@ -37,7 +37,7 @@ All tables: `id uuid primary key default gen_random_uuid()` (client may supply f
 | `color` | text, check in `('c1'…'c8')` (theme token key, not hex) |
 | `archived_at` | timestamptz null |
 
-**Normalisation rule N** is defined once, in [DOMAIN_MODEL.md §6.1](DOMAIN_MODEL.md): collapse whitespace runs (`[ \t\r\n\f\v]` and U+00A0) to one space, trim, upper-case ASCII `a–z` only. SQL (locale-independent): `translate(btrim(regexp_replace(x, '[ \t\r\n\f\v\u00a0]+', ' ', 'g')), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')`. (`upper()` is deliberately **not** used because it is locale dependent and would diverge from JavaScript.) The TypeScript twin is `normaliseKey`; a shared golden-vector test runs both (ACCEPTANCE C-10).
+**Normalisation rule N** is defined once, in [DOMAIN_MODEL.md §6.1](DOMAIN_MODEL.md): collapse whitespace runs (`[ \t\r\n\f\v]` and U+00A0) to one space, trim, upper-case ASCII `a–z` only. SQL (locale-independent): `translate(btrim(regexp_replace(x, '[ \t\r\n\f\v\u00a0]+', ' ', 'g')), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')`. (`upper()` is deliberately **not** used because it is locale dependent and would diverge from JavaScript.) *Implemented* as the immutable function `orbit_private.orbit_normalise_key(text)` (regex ARE escapes `\t \r \n \f \v \u00a0`), which the generated columns call; `supabase/tests/courses.test.ts` runs the golden vectors through it. The TypeScript twin is `normaliseKey`; a shared golden-vector test runs both (ACCEPTANCE C-10).
 
 Indexes: `(user_id, archived_at)`; `(user_id, code_key) where code_key is not null` (matching lookups); **unique `(user_id, code_key, institution_key, term_key) where code_key is not null`**, so the *same normalised* code cannot be duplicated for the same institution and term label. Because uniqueness uses the same key as matching, `"inf 101"` and `"INF  101"` can never coexist as two courses. Two courses with the same code and **different** term labels/institutions are allowed; whether they can be told apart for *matching* depends only on term dates (DOMAIN §6.2). Overlapping term dates for one code are allowed by the database (an exclusion constraint would need `btree_gist`); the client warns and matching treats overlap as ambiguous. [Open] O-19
 
@@ -148,7 +148,7 @@ Per table, identical to `events` [Fact]:
 * No change to `events`, `recurring_series`, `series_exceptions`, `event_imports`, `event_import_links`, their policies, grants, triggers or functions.
 * Course ↔ session relation is derived in the client from `courseCode` (DOMAIN_MODEL §6). Imported events keep byte-identical content, so `imported_snapshot` comparisons, "verified" checks and re-import duplicate prevention are unaffected.
 * `orbit_forget_import_history` and the import RPCs do not reference the new tables.
-* Normalisation function for matching (client, pure, unit-tested): `trim → collapse internal whitespace → uppercase`; the DB unique index uses `lower(btrim())` only for de-duplicating *courses*, not for matching events.
+* Normalisation is **rule N** everywhere (§3.1, DOMAIN_MODEL §6.1): the client's `normaliseKey` (pure, unit-tested) and the database's `code_key`/`institution_key`/`term_key` generated columns (via `orbit_private.orbit_normalise_key`) produce identical keys from the same golden vectors, and the unique index and matching both use those keys. `lower()`/`btrim()`-only normalisation is not used anywhere.
 
 ## 7. Migration strategy
 
