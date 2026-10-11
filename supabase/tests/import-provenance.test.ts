@@ -30,8 +30,8 @@ const migrationsDir = join(__dirname, '..', 'migrations')
 const recoveryDir = join(__dirname, '..', 'recovery')
 const PROPOSAL = readFileSync(join(migrationsDir, '20261015120000_event_imports.sql'), 'utf8')
 const ROLLBACK = readFileSync(join(recoveryDir, '20261015120000_event_imports.rollback.sql'), 'utf8')
-// The base schema = every migration except the provenance one, which these tests apply (and roll back) explicitly.
-const migrationFiles = readdirSync(migrationsDir).filter((n) => n.endsWith('.sql') && !/event_imports/.test(n)).sort()
+// The base schema = every migration before the provenance one (later migrations, e.g. courses, have their own tests), which these tests apply (and roll back) explicitly.
+const migrationFiles = readdirSync(migrationsDir).filter((n) => n.endsWith('.sql') && n < '20261015120000_event_imports.sql').sort()
 
 type Q = { rows: Record<string, unknown>[] }
 
