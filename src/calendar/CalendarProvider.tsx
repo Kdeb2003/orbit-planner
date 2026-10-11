@@ -5,7 +5,11 @@ import { createSupabaseApi } from '../cloud/cloudApi'
 import type { CloudApi } from '../cloud/cloudApi'
 import { createSupabaseImportApi } from '../cloud/importApi'
 import type { ImportApi } from '../cloud/importApi'
+import { lazyPlannerApiFactory } from '../cloud/plannerApiLoader'
+import type { PlannerApi } from '../cloud/plannerApi'
 import { supabase } from '../lib/supabase'
+import { PLANNER_COURSES_ENABLED } from '../planner/flag'
+import { PlannerContext } from '../planner/PlannerContext'
 import { createCalendarManager } from './calendarManager'
 import { CalendarContext } from './CalendarContext'
 import { createEmptySource, createLocalSource } from './localSource'
@@ -17,6 +21,11 @@ interface CalendarProviderProps {
   createApi?: (userId: string) => CloudApi | null
   /** Tests inject an in-memory import backend. Default: the real Supabase client (null when unconfigured). */
   createImportApi?: () => ImportApi | null
+  /**
+   * Tests inject an in-memory courses API (this also switches the planner on for that provider). Default: the real
+   * Supabase client, but ONLY when VITE_ENABLE_PLANNER_COURSES=true; otherwise no planner session exists.
+   */
+  createPlannerApi?: (userId: string) => PlannerApi | null | Promise<PlannerApi | null>
 }
 
 const localSource = createLocalSource()
@@ -29,7 +38,7 @@ const defaultCreateApi = (): CloudApi | null => (supabase ? createSupabaseApi(su
  *  - signed in               -> that user's cloud data ONLY (never the shared local storage)
  *  - anything else           -> nothing (private data is never shown to a signed-out visitor)
  */
-export function CalendarProvider({ children, createApi, createImportApi }: CalendarProviderProps) {
+export function CalendarProvider({ children, createApi, createImportApi, createPlannerApi }: CalendarProviderProps) {
   const { state } = useAuth()
   const userId = state.status === 'signed-in' ? state.user.id : null
   const realtime = import.meta.env.VITE_ENABLE_REALTIME === 'true'
@@ -37,9 +46,11 @@ export function CalendarProvider({ children, createApi, createImportApi }: Calen
   const [manager] = useState(() =>
     createCalendarManager({
       createApi: createApi ?? defaultCreateApi,
+      createPlannerApi: createPlannerApi ?? lazyPlannerApiFactory({ enabled: PLANNER_COURSES_ENABLED, client: supabase }),
       startRealtime: realtime && supabase ? (id, onChange) => subscribeRealtime(supabase!, id, onChange) : undefined,
     }),
   )
+  const plannerEnabled = createPlannerApi !== undefined || PLANNER_COURSES_ENABLED
   useEffect(() => {
     manager.setUser(userId)
     return () => manager.setUser(null)
@@ -56,5 +67,13 @@ export function CalendarProvider({ children, createApi, createImportApi }: Calen
     return { source: createEmptySource('loading', userId), api: null, importApi: null, userId }
   }, [unconfigured, session, userId, importApi])
 
-  return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>
+  // Same guard as above: never expose the planner session of a different (previous) user; no planner in local mode.
+  const planner = !unconfigured && session && userId && session.userId === userId ? session.planner : null
+  const plannerValue = useMemo(() => ({ enabled: plannerEnabled && !unconfigured, source: planner }), [plannerEnabled, unconfigured, planner])
+
+  return (
+    <CalendarContext.Provider value={value}>
+      <PlannerContext.Provider value={plannerValue}>{children}</PlannerContext.Provider>
+    </CalendarContext.Provider>
+  )
 }

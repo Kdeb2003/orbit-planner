@@ -85,6 +85,9 @@ jobs:
           # (20261015120000_event_imports.sql) has been applied to the hosted project and the hosted two-account
           # RLS/provenance verification passed (79 passed, 0 failed). The page still probes the backend at runtime.
           VITE_ENABLE_TIMETABLE_SAVE: 'true'
+          # Courses (Phase 4B) stay OFF in production: the courses migration is NOT applied to the hosted project.
+          # Only a reviewed PR that follows the hosted migration and the two-account check may change this value.
+          VITE_ENABLE_PLANNER_COURSES: 'false'
 
       - name: Verify the production base path
         # Guards against silent drift (e.g. someone editing vite.config.ts and
