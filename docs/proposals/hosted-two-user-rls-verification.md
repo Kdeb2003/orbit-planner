@@ -90,6 +90,10 @@ Close the shell (or `Remove-Item Env:ORBIT_*`) afterwards. Nothing is written to
 
 Still true: the network logic has never run against a real server.
 
+## E3. Courses
+
+The `courses` table is verified by its own script, `scripts/hosted-courses-check.mjs`, described in `docs/phase-4b/HOSTED_COURSES_RELEASE.md` (Gate C). This document and `hosted-two-user-rls-check.mjs` are unchanged and do not cover it.
+
 ## F. Status
 
 | Item | Status |
