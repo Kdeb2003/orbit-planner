@@ -7,6 +7,7 @@ import { EventItem } from '../components/EventItem'
 import { Card } from '../components/ui/Card'
 import { useEventEditor } from '../hooks/useEventEditor'
 import { useCalendar } from '../calendar/CalendarContext'
+import { useCourseAnnotator } from '../planner/useCourseAnnotator'
 import { useNow } from '../hooks/useNow'
 import type { ScheduledItem } from '../types'
 import { eventsOnDay } from '../utils/events'
@@ -34,6 +35,7 @@ export function CalendarPage() {
   const now = useNow(60_000)
   const today = dateKey(now)
   const { events, series, source } = useCalendar()
+  const courseOf = useCourseAnnotator()
   const editor = useEventEditor()
   const [selected, setSelected] = useState(() => dateKey(new Date()))
   const [view, setView] = useState<View>('month')
@@ -187,7 +189,7 @@ export function CalendarPage() {
                   <ul className="space-y-2">
                     {evs.map((e) => (
                       <li key={e.id}>
-                        <EventItem event={e} day={d} onSelect={editor.openEdit} onRestore={restore} />
+                        <EventItem event={e} day={d} onSelect={editor.openEdit} onRestore={restore} course={courseOf?.(e)} />
                       </li>
                     ))}
                   </ul>
@@ -213,7 +215,7 @@ export function CalendarPage() {
             <ul className="space-y-2">
               {selectedEvents.map((e) => (
                 <li key={e.id}>
-                  <EventItem event={e} day={selected} onSelect={editor.openEdit} onRestore={restore} />
+                  <EventItem event={e} day={selected} onSelect={editor.openEdit} onRestore={restore} course={courseOf?.(e)} />
                 </li>
               ))}
             </ul>

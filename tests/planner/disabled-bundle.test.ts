@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // Strings that only exist in the planner data layer (API, mappers, source).
 // (data layer + the Courses page/dialogs)
-const MARKERS = ['duplicate_course', 'planner_unavailable', 'courses_user_code_institution_term_key', 'term_start', 'unconfirmed', 'No courses yet', 'Courses need an ORBIT account', 'Keep my entries']
+const MARKERS = ['duplicate_course', 'planner_unavailable', 'courses_user_code_institution_term_key', 'term_start', 'unconfirmed', 'No courses yet', 'Courses need an ORBIT account', 'Keep my entries', 'Suggest from my calendar', 'outside-term']
 
 let out = ''
 const assets = () => readdirSync(join(out, 'assets')).filter((f) => f.endsWith('.js'))

@@ -1,6 +1,6 @@
-import type { CalendarEvent, RecurringSeries } from '../types'
+import type { CalendarEvent, RecurringSeries, ScheduledItem } from '../types'
 import type { CodeSessions, CourseMatch, CourseSession, CourseSuggestions, MatchableCourse } from '../types/planner'
-import { expandSeries } from '../utils/recurrence'
+import { expandSeries, occursOn } from '../utils/recurrence'
 import { addDays, dateKey, isValidDateKey } from '../utils/time'
 import type { DateKey } from '../utils/time'
 import { normaliseCourseCode } from './normalise'
@@ -21,7 +21,7 @@ function classify(course: MatchableCourse, day: DateKey): TermClass {
 }
 
 /** The session's local date in its own zone, or undefined for an unreadable instant or zone. */
-function sessionDay(session: CourseSession): DateKey | undefined {
+export function sessionDay(session: CourseSession): DateKey | undefined {
   const t = Date.parse(session.start)
   if (Number.isNaN(t)) return undefined
   try {
@@ -76,15 +76,32 @@ export function courseForSession<C extends MatchableCourse>(
 /** Series are limited to ~3 years; never expand beyond this many days from a series' start. */
 const MAX_SERIES_DAYS = 1100
 
-function sessionsOf(events: readonly CalendarEvent[], series: readonly RecurringSeries[]): CourseSession[] {
+/** A calendar item that can take part in matching: one-off events and generated occurrences alike. */
+export type CalendarSession = ScheduledItem
+
+/**
+ * Every session of the calendar that carries a course code: one-off events, plus each recurring occurrence exactly
+ * once, at its EFFECTIVE position (moved occurrences at their new date, edited codes applied, cancelled occurrences
+ * dropped), via the same recurrence engine the calendar displays. Bounded: at most ~3 years per series, plus
+ * wherever its occurrences were moved to.
+ */
+export function calendarSessions(events: readonly CalendarEvent[], series: readonly RecurringSeries[]): CalendarSession[] {
   const hasCode = (c: CourseSession) => normaliseCourseCode(c.courseCode) !== ''
-  const out: CourseSession[] = events.filter(hasCode)
+  const out: CalendarSession[] = events.filter(hasCode)
   for (const s of series) {
     const r = s.recurrence
     const cap = addDays(r.startDate, MAX_SERIES_DAYS)
-    for (const item of expandSeries(s, r.startDate, r.untilDate < cap ? r.untilDate : cap)) {
-      if (hasCode(item)) out.push(item)
+    let from: DateKey = r.startDate
+    let to: DateKey = r.untilDate < cap ? r.untilDate : cap
+    // an occurrence moved outside the series' own dates still exists where it was moved to
+    for (const ex of s.exceptions) {
+      const moved = ex.override?.start
+      if (!moved || Number.isNaN(Date.parse(moved)) || !occursOn(s, ex.originalDate)) continue
+      const d = dateKey(new Date(moved), s.timeZone)
+      if (d < from) from = d
+      if (d > to) to = d
     }
+    for (const item of expandSeries(s, from, to)) if (hasCode(item)) out.push(item)
   }
   return out
 }
@@ -112,7 +129,7 @@ export function suggestCoursesFromEvents(
   const outside: Bucket = new Map()
   const ambiguous: Bucket = new Map()
 
-  for (const session of sessionsOf(events, series)) {
+  for (const session of calendarSessions(events, series)) {
     const day = sessionDay(session)
     if (day === undefined) continue
     const status = matchCourse(session, courses).status

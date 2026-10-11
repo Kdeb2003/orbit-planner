@@ -1,18 +1,25 @@
-import { CloudOff, Loader2, Plus, RefreshCw, TriangleAlert, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CalendarSearch, CloudOff, Loader2, Plus, RefreshCw, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
+import { useCalendar } from '../calendar/CalendarContext'
 import { ConfirmDialog } from '../components/planner/ConfirmDialog'
 import { CourseCard } from '../components/planner/CourseCard'
 import { CourseDialog } from '../components/planner/CourseDialog'
 import { PlanTabs } from '../components/planner/PlanTabs'
+import { SuggestPanel } from '../components/planner/SuggestPanel'
+import type { Freshness } from '../components/planner/SuggestPanel'
 import { Card } from '../components/ui/Card'
 import { PageHeader } from '../components/ui/PageHeader'
+import type { CourseFormValues } from '../planner/courseForm'
+import { analyseCalendar } from '../planner/courseInsights'
+import type { AttentionGroup } from '../planner/courseInsights'
 import { sharedCodeCourses } from '../planner/courseOverlap'
+import { calendarSessions, normaliseCourseCode } from '../planner/courses'
 import { usePlanner } from '../planner/PlannerContext'
 import type { PlannerResult } from '../planner/plannerSource'
 import type { Course } from '../types/planner'
 
-type Dialog = { kind: 'new' } | { kind: 'edit'; course: Course }
+type Dialog = { kind: 'new'; initial?: Partial<CourseFormValues>; hint?: string } | { kind: 'edit'; course: Course }
 type Confirm = { kind: 'archive' | 'delete'; course: Course }
 
 const primaryBtn = 'inline-flex min-h-11 items-center gap-2 rounded-xl bg-accent px-5 text-sm font-medium text-white hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60'
@@ -32,6 +39,8 @@ export function CoursesPage() {
 function CoursesManager() {
   const { enabled, source, snapshot } = usePlanner()
   const { state } = useAuth()
+  const cal = useCalendar()
+  const [suggestOpen, setSuggestOpen] = useState(false)
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [confirm, setConfirm] = useState<Confirm | null>(null)
   const [confirmPending, setConfirmPending] = useState(false)
@@ -42,6 +51,14 @@ function CoursesManager() {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  // Calendar and courses are read from the existing snapshots only (no extra request). They must belong to the same
+  // account; otherwise nothing is combined.
+  const sameAccount = !!snapshot && cal.mode === 'cloud' && cal.userId === snapshot.userId
+  const sessions = useMemo(() => (sameAccount ? calendarSessions(cal.events, cal.series) : []), [sameAccount, cal.events, cal.series])
+  const insights = useMemo(() => analyseCalendar(sessions, snapshot?.courses ?? []), [sessions, snapshot?.courses])
+  const calendarFreshness: Freshness = !sameAccount || cal.status === 'loading' ? 'loading' : cal.status === 'error' ? 'unavailable' : cal.offline || cal.error ? 'stale' : 'current'
+  const coursesFreshness: Freshness = !snapshot || snapshot.status === 'loading' ? 'loading' : snapshot.status === 'error' || snapshot.unavailable ? 'unavailable' : snapshot.offline || snapshot.error ? 'stale' : 'current'
 
   // "Show the existing course": scroll to it, focus it and mark it for a few seconds.
   useEffect(() => {
@@ -134,6 +151,15 @@ function CoursesManager() {
       key={c.id}
       course={c}
       shared={sharedCodeCourses(courses, c)}
+      matching={
+        calendarFreshness === 'current' || calendarFreshness === 'stale'
+          ? {
+              counts: insights.perCourse.get(c.id) ?? { dated: 0, byCode: 0 },
+              codeLevel: insights.perCode.get(normaliseCourseCode(c.code)),
+              stale: calendarFreshness === 'stale' || coursesFreshness === 'stale',
+            }
+          : undefined
+      }
       busy={busyId === c.id || (confirmPending && confirm?.course.id === c.id)}
       highlighted={highlightId === c.id}
       onEdit={() => {
@@ -174,12 +200,45 @@ function CoursesManager() {
               <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden /> Saving…
             </span>
           )}
+          <button
+            type="button"
+            disabled={!canAdd}
+            aria-expanded={suggestOpen}
+            aria-controls="suggest-panel-region"
+            onClick={() => setSuggestOpen((o) => !o)}
+            className={secondaryBtn}
+          >
+            <CalendarSearch size={16} aria-hidden /> Suggest from my calendar
+          </button>
           <button type="button" disabled={!canAdd} onClick={() => setDialog({ kind: 'new' })} className={primaryBtn}>
             <Plus size={16} aria-hidden /> Add course
           </button>
         </div>
       </div>
       <PlanTabs />
+
+      <div id="suggest-panel-region">
+        {suggestOpen && canAdd && (
+          <SuggestPanel
+            snapshot={snapshot}
+            source={source}
+            insights={insights}
+            calendar={calendarFreshness}
+            courses={coursesFreshness}
+            onEditCourse={(c) => {
+              setNotice(null)
+              setDialog({ kind: 'edit', course: c })
+            }}
+            onCreateForTerm={(g: AttentionGroup) =>
+              setDialog({
+                kind: 'new',
+                initial: { name: g.suggestedName, code: g.code, termStart: g.firstDate, termEnd: g.lastDate },
+                hint: 'Suggested from calendar — please check. The name and dates come from the sessions in your calendar, not from an official source. If another course already uses this code with the same institution and term label, add a term label that tells them apart.',
+              })
+            }
+          />
+        )}
+      </div>
 
       {notice && (
         <p role="status" data-testid="courses-notice" className="flex items-start justify-between gap-3 rounded-xl border border-line bg-surface-2/60 px-3 py-2 text-sm">
@@ -258,9 +317,14 @@ function CoursesManager() {
               <p className="mt-1 text-sm text-muted">
                 Add the subjects you study this term. Give each one the course code that appears on your timetable, and ORBIT can match timetable sessions to it. Courses are optional; your calendar works without them.
               </p>
-              <button type="button" disabled={!canAdd} onClick={() => setDialog({ kind: 'new' })} className={`${primaryBtn} mt-4`}>
-                <Plus size={16} aria-hidden /> Add course
-              </button>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button type="button" disabled={!canAdd} onClick={() => setDialog({ kind: 'new' })} className={primaryBtn}>
+                  <Plus size={16} aria-hidden /> Add course
+                </button>
+                <button type="button" disabled={!canAdd} onClick={() => setSuggestOpen(true)} className={secondaryBtn}>
+                  <CalendarSearch size={16} aria-hidden /> Suggest from my calendar
+                </button>
+              </div>
             </Card>
           ) : (
             <>
@@ -291,6 +355,9 @@ function CoursesManager() {
       {dialog && (
         <CourseDialog
           course={dialog.kind === 'edit' ? dialog.course : null}
+          initial={dialog.kind === 'new' ? dialog.initial : undefined}
+          hint={dialog.kind === 'new' ? dialog.hint : undefined}
+          sessions={calendarFreshness === 'current' || calendarFreshness === 'stale' ? sessions : []}
           snapshot={snapshot}
           source={source}
           onClose={closeDialog}
