@@ -43,16 +43,16 @@ describe('feature flag VITE_ENABLE_PLANNER_COURSES', () => {
     expect(readers).toEqual(['src/planner/flag.ts'])
   })
 
-  it('the production deploy workflow pins it to \'false\' (and nothing in the workflow can turn it on)', () => {
+  it('the production deploy workflow sets it to the literal \'true\' exactly once (hosted gates A-C passed)', () => {
     const wf = readFileSync(resolve('.github/workflows/deploy.yml'), 'utf8')
-    expect(wf).toMatch(/^\s*VITE_ENABLE_PLANNER_COURSES: 'false'\s*$/m)
+    expect(wf).toMatch(/^\s*VITE_ENABLE_PLANNER_COURSES: 'true'\s*$/m)
     expect(wf.match(/VITE_ENABLE_PLANNER_COURSES/g)).toHaveLength(1)
-    expect(wf).not.toMatch(/VITE_ENABLE_PLANNER_COURSES:\s*['"]?(true|1|yes)/i)
-    expect(wf).not.toMatch(/VITE_ENABLE_PLANNER_COURSES:\s*\$\{\{/) // not taken from a variable/secret either
+    expect(wf).not.toMatch(/VITE_ENABLE_PLANNER_COURSES:\s*['"]?(false|1|yes|TRUE)/)
+    expect(wf).not.toMatch(/VITE_ENABLE_PLANNER_COURSES:\s*\$\{\{/) // never taken from a variable/secret
   })
 
   it('no workflow other than deploy.yml and no tracked env file enables it', () => {
-    for (const n of readdirSync(resolve('.github/workflows'))) {
+    for (const n of readdirSync(resolve('.github/workflows')).filter((w) => w !== 'deploy.yml')) {
       const text = readFileSync(resolve('.github/workflows', n), 'utf8')
       expect(text, n).not.toMatch(new RegExp(`${FLAG}:\\s*['"]?true`, 'i'))
     }

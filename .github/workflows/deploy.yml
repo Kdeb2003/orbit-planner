@@ -85,9 +85,12 @@ jobs:
           # (20261015120000_event_imports.sql) has been applied to the hosted project and the hosted two-account
           # RLS/provenance verification passed (79 passed, 0 failed). The page still probes the backend at runtime.
           VITE_ENABLE_TIMETABLE_SAVE: 'true'
-          # Courses (Phase 4B) stay OFF in production: the courses migration is NOT applied to the hosted project.
-          # Only a reviewed PR that follows the hosted migration and the two-account check may change this value.
-          VITE_ENABLE_PLANNER_COURSES: 'false'
+          # Courses (Phase 4B) are ON in production from the deploy of this change: the courses migration
+          # (20261020120000_courses.sql) is applied to the hosted project, the hosted schema check passed (Gate B,
+          # 12/12) and the hosted two-account security check passed (Gate C, 59 passed, 0 failed). This value only
+          # takes effect once the PR that sets it is merged to main and deployed. To hide the UI again, set it back
+          # to 'false' in a reviewed PR (Row Level Security stays the real protection).
+          VITE_ENABLE_PLANNER_COURSES: 'true'
 
       - name: Verify the production base path
         # Guards against silent drift (e.g. someone editing vite.config.ts and
