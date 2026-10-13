@@ -1,6 +1,15 @@
 # Hosted release of Courses (Phase 4B.1c): runbook
 
-**Status: PREPARED, NOT EXECUTED.** Nothing in this document has been run against the hosted project. The `courses` migration is **not applied** to hosted, the production flag `VITE_ENABLE_PLANNER_COURSES` is pinned `'false'` in `.github/workflows/deploy.yml`, and no hosted account has been created for this. Every gate below needs the owner's explicit approval; Claude/automation never runs a hosted gate on its own.
+**Status: Gates A, B and C DONE; Gate D PR PREPARED, NOT YET MERGED OR DEPLOYED.** The live site does not run Courses until the Gate D PR is merged and deployed, and the live-site smoke test is still pending. Every gate needed the owner's explicit approval; Claude/automation never runs a hosted gate on its own. The sections below keep the original runbook text (written before execution) for reference.
+
+### Execution record (hosted project `wlxdfrkppuhjtubntduc`)
+
+| Gate | Outcome |
+|---|---|
+| A | Done. Preflight passed (blob and SHA-256 matched; history = three applied + only `20261020120000` pending; dry run listed only that file; PostgreSQL 17.11). The Supabase Free plan has no confirmed usable backup (`backups: []`, no point-in-time recovery); **the owner deliberately waived the backup for this release.** Future backup work: GitHub issue #18. |
+| B | Done. `20261020120000_courses.sql` applied to `wlxdfrkppuhjtubntduc`. All 12 read-only hosted schema checks passed (RLS on, exactly four owner-only policies, nothing for `anon`/PUBLIC, column-limited `authenticated` grants, both helper functions, indexes and the `courses_protect` trigger, zero rows, migration history intact). |
+| C | Done. `scripts/hosted-courses-check.mjs` run with two existing normal accounts: **59 passed, 0 failed, exit code 0**. Synthetic course cleanup succeeded with zero rows remaining. The two accounts were retained, not deleted. |
+| D | Activation PR prepared (`release/courses-gate-d-enable`: flag `'true'` in `deploy.yml`, guard test, docs). **Not yet merged or deployed; live-site smoke test pending.** |
 
 Why gates: once real course rows exist, undoing the migration destroys them. So the release is split into four steps, each with a clear stop condition, and nothing is enabled for users until the hosted security check passes.
 
@@ -48,7 +57,7 @@ Do all of this on the owner's machine; the checks marked *read-only* look at the
 6. **API exposure.** Dashboard -> Settings -> API: "Exposed schemas" must NOT include `orbit_private` (the helper functions must not be callable as RPC). `public` and `graphql_public` are the defaults.
 7. **Backup.** The project has no real course data yet, so the table is new and the migration only *adds* objects; still, take the standard precaution: dashboard -> Database -> Backups shows a recent backup (or take a manual one if the plan allows), and write down the time. The calendar and import-history tables are untouched by this migration, but they are real data.
 8. **Single transaction.** The SQL must be applied as ONE transaction, so that a failure can never leave a half-created table (for example a table that exists but whose RLS/revokes have not run yet). The Supabase CLI applies a migration file as one batch; if you use the SQL editor or `psql` instead, wrap the file in `begin; ... commit;` (or `psql -1`) and never run it statement by statement.
-9. **Flag stays off.** `grep VITE_ENABLE_PLANNER_COURSES .github/workflows/deploy.yml` shows `'false'`.
+9. **Flag stays off (until Gate D).** `grep VITE_ENABLE_PLANNER_COURSES .github/workflows/deploy.yml` shows `'false'`.
 10. **Owner approval.** The owner writes "approved: apply 20261020120000_courses.sql to project <ref>" in the conversation. Without it, stop here.
 
 ## Gate B: apply the migration
